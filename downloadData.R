@@ -16,7 +16,6 @@
 library("rnoaa")
 library("tidyverse")
 library("lubridate")
-library("lettercase")
 
 #+ Data ----
 #-- Download date
@@ -52,12 +51,11 @@ knitr::kable(stations)
 
 #-- Weather Data
 #' Clear GHCND cache files to ensure data are downloaded to current date
-ghcnd_clear_cache()
+meteo_clear_cache()
 
 #' Download data from the Global Histoic Climate Network
-dat.raw <- meteo_pull_monitors(stations$ID, # Pull data from GHCND ftp site
-                               var = c("prcp", "tmax", "tmin"), 
-                               date_max = download.date, keep_flags = T)
+dat.raw <- meteo_pull_monitors(paste0("GHCND:", stations$ID), # Pull data from GHCND ftp site
+                               var = c("PRCP", "TMAX", "TMIN"), keep_flags = T)
 
 #' Convert from wide to long data
 wx.dat <- dat.raw %>%
