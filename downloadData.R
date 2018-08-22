@@ -32,36 +32,27 @@ stations <- ghcnd_stations() %>% # Download station metadata from GHCN
   # Select variables of interest
   select(id, name, state, latitude, longitude, elevation) %>%
   distinct() %>% # Consolidate dataframe
-  mutate(name = factor(name,
-                       levels = c("ARCHES NP HQS", "CANYONLANDS-THE NECK", 
-                                  "CANYONLANDS-THE NEEDLES", "HANS FLAT RS", 
-                                  "HOVENWEEP NM", "NATURAL BRIDGES NM", 
-                                  "MOAB"))) %>%
-  arrange(name) %>%
-  mutate(ParkUnit = factor(c("ARCH", "CANY", "CANY", "CANY", "HOVE", "NABR", 
-                             "MOAB"), 
+  mutate(parkUnit = factor(c("ARCH", "CANY", "CANY", "CANY", "HOVE", "MOAB", 
+                             "NABR"), 
                            levels = c("ARCH", "CANY", "HOVE", "NABR", "MOAB")), 
-         District = factor(c("ARCH", "ISKY", "NEED", "MAZE", "HOVE", "NABR", 
-                             "MOAB"), 
+         district = factor(c("ARCH", "ISKY", "NEED", "MAZE", "HOVE", "MOAB", 
+                             "NABR"), 
                            levels = c("ARCH", "ISKY", "NEED", "MAZE", "HOVE", 
-                                      "NABR", "MOAB"))) %>%
-  rename(ID = id, Name = name, State = state, Latitude = latitude, 
-         Longitude = longitude, Elevation = elevation)
+                                      "NABR", "MOAB")))
 knitr::kable(stations)
 
 #-- Weather Data
 #' Clear GHCND cache files to ensure data are downloaded to current date
-meteo_clear_cache()
+ghcnd_clear_cache()
 
 #' Download data from the Global Histoic Climate Network
-dat.raw <- meteo_pull_monitors(paste0("GHCND:", stations$ID), # Pull data from GHCND ftp site
-                               var = c("PRCP", "TMAX", "TMIN"), keep_flags = T)
+dat.raw <- meteo_pull_monitors(as.vector(stations$id))
 
 #' Convert from wide to long data
 wx.dat <- dat.raw %>%
   select(id, date, prcp, tmax, tmin) %>%
-  gather(Element, Value, 3:5, na.rm = F) %>%
-  mutate(key = paste0(id, as.numeric(date), Element)) %>%
+  gather(element, value, 3:5, na.rm = F) %>%
+  mutate(key = paste0(id, as.numeric(date), element)) %>%
   left_join(select(dat.raw, id, date, contains("mflag")) %>%
               gather(element, MFLAG, 3:5, na.rm = F) %>%
               separate(element, c("flag", "element"), "_") %>%  
@@ -124,7 +115,8 @@ wx.dat %>%
 
 #+ Clean Data ----
 wx.dat <- wx.dat %>%
-  mutate(Value = ifelse(QFLAG %in% qflags$QFLAG, NA, value)) %>%
+  mutate(value = ifelse(QFLAG %in% qflags$QFLAG, NA, value)) %>%
+  select(key, id, parkUnit, district, date, element, value, MFLAG, QFLAG, SFLAG)
   arrange(id, date, element)
 
 #+ End Script ----
