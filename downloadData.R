@@ -54,8 +54,7 @@ knitr::kable(stations)
 meteo_clear_cache()
 
 #' Download data from the Global Histoic Climate Network
-dat.raw <- meteo_pull_monitors(paste0("GHCND:", stations$ID), # Pull data from GHCND ftp site
-                               var = c("PRCP", "TMAX", "TMIN"), keep_flags = T)
+dat.raw <- meteo_pull_monitors(stations$ID, keep_flags = T, date_max = today())
 
 #' Convert from wide to long data
 wx.dat <- dat.raw %>%
