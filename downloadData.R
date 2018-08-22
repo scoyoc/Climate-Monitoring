@@ -51,7 +51,7 @@ stations <- ghcnd_stations() %>% # Download station metadata from GHCN
 knitr::kable(stations)
 
 #-- Weather Data
-#' Clear GHCND cache files
+#' Clear GHCND cache files to ensure data are downloaded to current date
 ghcnd_clear_cache()
 
 #' Download data from the Global Histoic Climate Network
