@@ -149,7 +149,7 @@ t1 <- ggplot(temp.fig.dat, aes(x = mthName, y = depart, fill = element)) +
                     labels = c("Daily Max Temp (TMAX)", 
                                "Daily Min Temp (TMIN)")) +
   scale_color_manual(values = c("red4", "darkgreen")) +
-  labs(x = "Year", y = "Departure (?F)", title = my.title) +
+  labs(x = "Year", y = "Departure (°F)", title = my.title) +
   theme_bw() +
   my.theme +
   theme(axis.text.x  = element_text(angle=90, vjust=0.5), 
