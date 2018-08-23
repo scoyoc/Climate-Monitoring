@@ -275,7 +275,7 @@ prcp.fig.dat <- prcp.pct %>%
   
 # Plot figure
 # Custom title and text
-my.title <- "Percent average precipitaion at SEUG visitor centers\nfor water year 2018  to date"
+my.title <- "Percent average precipitation at SEUG visitor centers\nfor water year 2018  to date"
 my.text <- paste0("Data were downloaded on ", downloadDate, ".")
 
 p1 <- ggplot(prcp.fig.dat, aes(x = mthName, y = Value, fill = Var)) +
