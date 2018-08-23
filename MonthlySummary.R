@@ -28,6 +28,7 @@
 library("xlsx") # Import and export Microsoft Excel workbooks
 library("tidyverse") # Data manipulation
 library("lubridate") # Easily work with date/time data
+library("cowplot") # Streamlining for ggplot2
 
 #-- Figures
 # ggplot theme settings
@@ -38,6 +39,7 @@ my.theme <- theme(strip.background = element_rect(fill="white"),
                   legend.position = c(0.85, 0.15), 
                   legend.title = element_blank(), 
                   legend.direction = "vertical", 
+                  legend.text = element_text(size = 12),
                   plot.title = element_text(hjust = 0.5))
 
 # Data ----
@@ -56,7 +58,7 @@ target.month <- filter(month.df, month == (month(today()) -1 ))
 #-- Load .RData
 load("Climate.RData")
 
-# Designate factor levels so data sort as desired
+# Add years and months to wx.dat
 wx.dat <- wx.dat %>%
   mutate(month = month(date), 
          year = year(date), 
@@ -75,23 +77,23 @@ temp.dat <- wx.dat %>%
 temps.30yr <- temp.dat %>%
   filter(waterYr >= 1981 & waterYr <= 2010) %>%
   group_by(element, district, waterMonth) %>%
-  summarise(mean.30yr = round(mean(degC, na.rm = T), 3),
-            p90.30yr = quantile(degC, 0.90, na.rm = T)) %>%
+  summarise(mean.30yr = round(mean(degF, na.rm = T), 3),
+            p90.30yr = quantile(degF, 0.90, na.rm = T)) %>%
   left_join(month.df) %>%
   select(element, district, mthName, waterMonth, mean.30yr, p90.30yr)
 
 #-- Rank warmest/coolest days for each weather district
 temps.dayRank = temp.dat %>%
-  select(element, district, waterMonth, date, degC) %>%
+  select(element, district, waterMonth, date, degF) %>%
   group_by(element, district, waterMonth) %>%
-  mutate(rank = min_rank(degC)) %>%
+  mutate(rank = min_rank(degF)) %>%
   arrange(element, district, waterMonth, desc(rank))
 
 #-- Rank warmest/coolest months for each weather district
 temps.mthRank <- temp.dat %>%
-  select(element, district, waterYr, waterMonth, degC) %>%
+  select(element, district, waterYr, waterMonth, degF) %>%
   group_by(element, district, waterYr, waterMonth) %>%
-  summarise(mthAvg = mean(degC, na.rm = T)) %>%
+  summarise(mthAvg = mean(degF, na.rm = T)) %>%
   group_by(element, district, waterMonth) %>%
   mutate(warmest = min_rank(-mthAvg),
          coolest = min_rank(mthAvg)) %>%
@@ -108,11 +110,18 @@ temps.depart <- temps.mthRank %>%
 #-- Table
 temp.sum <- temps.depart %>%
   filter(waterYr == water.yr & waterMonth <= target.month$waterMonth) %>%
-  gather(var, value, mthAvg:mean.30yr) %>%
+  mutate(mthAvg = round(mthAvg, 2), 
+         depart = round(depart, 2), 
+         rank_HotCold = paste(warmest, coolest, sep = "|"), 
+         mean.30yr = round(mean.30yr, 2)) %>%
   ungroup() %>%
-  select(element, waterYr, waterYr, district, mthName, var, value) %>%
+  select(element, district, waterYr, mthName, mthAvg, depart, rank_HotCold, 
+         mean.30yr) %>%
+  gather(var, value, mthAvg:mean.30yr) %>%  
+  full_join(month.df) %>%
+  select(-month, -waterMonth) %>%
   spread(mthName, value, fill = NA) %>%
-  mutate(var = factor(var, levels = c("mthAvg", "depart", "sarmest", "coolest", 
+  mutate(var = factor(var, levels = c("mthAvg", "depart", "rank_HotCold", 
                                       "mean.30yr"))) %>%
   arrange(district, element, var)
 
@@ -127,25 +136,32 @@ temp.fig.dat <- temps.depart %>%
   filter(waterYr == water.yr & waterMonth <= target.month$waterMonth)
 
 # Plot figure
-my.title <- "Water Year 2018 Departures from 30-yr Averages (1981-2010)\nat SEUG Visitor Centers"
+# Custom title and text
+my.title <- "Montly average air temperatures at SEUG visitor centers for water year 2018 to date\nDepartures from 30-yr averages (1981-2010)"
+my.text <- paste0("Data were downloaded on ", downloadDate, ".")
+
 t1 <- ggplot(temp.fig.dat, aes(x = mthName, y = depart, fill = element)) +
   geom_bar(stat = "identity", position = position_dodge(), color = "black") +
   geom_hline(aes(yintercept = 0), linetype="solid", size = 1.0, 
              color = "black") +
   facet_wrap(~ district) + 
-  scale_fill_manual(values = c("orange2", "deepskyblue3")) +
+  scale_fill_manual(values = c("orange2", "deepskyblue3"), 
+                    labels = c("Daily Max Temp (TMAX)", 
+                               "Daily Min Temp (TMIN)")) +
   scale_color_manual(values = c("red4", "darkgreen")) +
   labs(x = "Year", y = "Departure (?F)", title = my.title) +
   theme_bw() +
   my.theme +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5))
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5), 
+        legend.position = c(0.745, 0.15))
+t1 <- ggdraw(t1) + draw_label(my.text, x = 0.80, y = 0.12, size = 12)
 t1
 
 # Save
-my.dir <- paste(getwd(), "Figures", sep = "/")
-fig.title <- paste0(today(), "_SEUG_Departures.png")
-ggsave(fig.title, t1, device = "png", path = my.dir, 
-       width = 9.7, height = 5.2, units = "in", dpi = 500)
+my.dir <- paste(getwd(), "Results", sep = "/")
+fig.title <- paste(today(), "TemperatureDepartures.png", sep = "_")
+ggsave(fig.title, device = "png", path = my.dir, width = 9.7, height = 5.2, 
+       units = "in", dpi = 500)
 
 # PRCP ----
 #-- Subset data
@@ -222,58 +238,46 @@ prcp.pct <- prcp.mth.rank %>%
 # PRCP Summary ----
 #-- Table
 prcp.sum <- prcp.pct %>%
-  filter(waterYr == water.yr & mthName <= target.month$mthName) %>%
+  left_join(month.df) %>%
+  filter(waterYr == water.yr & waterMonth <= target.month$waterMonth) %>%
   mutate(element = "PRCP") %>%
+  ungroup() %>%
   select(element, waterYr, district, mthName, mth.30yr, mthObs, mthPctAvg, 
          mthDriest, mthWettest, wy.30yr, wyObs, wyPctAvg, wyDriest, wyWettest) %>%
-  mutate(mthRank_dw = paste(mthDriest, mthWettest, sep = "|"), 
-         wyRank_dw = paste(wyDriest, wyWettest, sep = "|")) %>%
+  mutate(mth.30yr = round(mth.30yr, 2),
+         mthPctAvg = round(mthPctAvg, 2),
+         wy.30yr = round(wy.30yr, 2), 
+         wyPctAvg = round(wyPctAvg, 2),
+         mthRank_DryWet = paste(mthDriest, mthWettest, sep = "|"), 
+         wyRank_DryWet = paste(wyDriest, wyWettest, sep = "|")) %>%
   select(-mthDriest, -mthWettest, -wyDriest, -wyWettest) %>%
-  gather(var, value, mth.30yr:wyRank_dw) %>%
+  gather(var, value, mth.30yr:wyRank_DryWet) %>%
   mutate(var = factor(var, levels = c("mth.30yr", "mthObs", "mthPctAvg",
-                                        "mthRank_dw", "wy.30yr", "wyObs", 
-                                        "wyPctAvg", "wyRank_dw"))) %>%
+                                      "mthRank_DryWet", "wy.30yr", "wyObs", 
+                                      "wyPctAvg", "wyRank_DryWet"))) %>%
   full_join(month.df) %>%
-  ungroup() %>%
-  select(-waterMonth, -month) %>%
+  select(-month, -waterMonth) %>%
   spread(mthName, value, fill = NA)
 
 #-- Figure
-# Format data for figure
-prcp.fig.dat <- temp.fig.dat %>%
-  select(district, labels, month, waterMonth, mthName) %>%
-  distinct() %>%
-  left_join(prcp.pct %>%
-              filter(waterYr == water.yr & 
-                     waterMonth <= target.month$waterMonth) %>%
-              select(district, waterYr, waterMonth, Mth.PctAvg, WY.PctAvg) %>%
-              gather(Stat, Value, Mth.PctAvg:WY.PctAvg))  %>%
-  mutate(waterYr = ifelse(is.na(waterYr), water.yr, waterYr), 
-         Stat = ifelse(is.na(Stat), "Mth.PctAvg", Stat))
-
 prcp.fig.dat <- prcp.pct %>%
   select(waterYr, district, mthName, mthPctAvg) %>%
   spread(mthName, mthPctAvg, fill = NA) %>%
+  mutate(Var = "mthPctAvg") %>%
+  bind_rows(select(prcp.pct, waterYr, district, mthName, wyPctAvg) %>%
+              spread(mthName, wyPctAvg, fill = NA) %>%
+              mutate(Var = "wyPctAvg")) %>%
   gather(mthName, Value, Oct:Sep) %>%
   mutate(mthName = factor(mthName, levels = c(month.abb[10:12], 
                                               month.abb[1:9]))) %>%
   left_join(month.df) %>%
-  filter(waterYr == water.yr & waterMonth <= target.month$waterMonth) %>%
-  select(-month, -waterMonth) %>%
-  mutate(Var = "mthPctAvg") %>%
-  bind_rows(select(prcp.pct, waterYr, district, mthName, wyPctAvg) %>%
-              spread(mthName, wyPctAvg, fill = NA) %>%
-              gather(mthName, Value, Oct:Sep) %>%
-              mutate(mthName = factor(mthName, levels = c(month.abb[10:12], 
-                                                          month.abb[1:9]))) %>%
-              left_join(month.df) %>%
-              filter(waterYr == water.yr & 
-                       waterMonth <= target.month$waterMonth) %>%
-              select(-month, -waterMonth) %>%
-              mutate(Var = "wyPctAvg"))
-
+  filter(waterYr == water.yr)
+  
 # Plot figure
-my.title <- "Water Year 2018 Percent Average Precipitaion at SEUG Visitor Centers"
+# Custom title and text
+my.title <- "Percent average precipitaion at SEUG visitor centers\nfor water year 2018  to date"
+my.text <- paste0("Data were downloaded on ", downloadDate, ".")
+
 p1 <- ggplot(prcp.fig.dat, aes(x = mthName, y = Value, fill = Var)) +
   geom_bar(stat = "identity", position = position_dodge(), color = "black") +
   scale_fill_manual(values = c("green3", "green4"), 
@@ -284,57 +288,56 @@ p1 <- ggplot(prcp.fig.dat, aes(x = mthName, y = Value, fill = Var)) +
   labs(x = "Month", y = "% of Average", title = my.title) +
   theme_bw() + 
   my.theme +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5))
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5), 
+        legend.position = c(0.725, 0.15))
+p1 <- ggdraw(p1) + draw_label(my.text, x = 0.80, y = 0.12, size = 12)
 p1
 
 # Save
-my.dir <- paste(getwd(), "Figures", sep = "/")
-fig.title <- paste(today(), "SEUG_PRCP.png", sep = "_")
-ggsave(fig.title, p1, device = "png", path = my.dir, 
-       width = 9.7, height = 5.2, units = "in", dpi = 500)
+my.dir <- paste(getwd(), "Results", sep = "/")
+fig.title <- paste(today(), "Precipitation.png", sep = "_")
+ggsave(fig.title, p1, device = "png", path = my.dir, width = 9.7, height = 5.2, 
+       units = "in", dpi = 500)
 
-# Save ----
-# Short summary for Biweekly Update
+# Excel ----
+#-- Short summary
 bwu.sum <- temps.depart %>%
   filter(waterYr == water.yr & waterMonth == target.month$waterMonth &
-         element == "TMAX") %>%
-  mutate(Departure = round(Departure, 2), 
-         TMAX.Rank_wc = paste(Warmest, Coolest, sep = "|")) %>%
-  rename(TMAX.Depart = Departure) %>%
+         element == "tmax") %>%
+  mutate(tmaxDeparture = round(depart, 2), 
+         tmaxRank_HotCold = paste(warmest, coolest, sep = "|")) %>%
   ungroup() %>%
-  select(district, TMAX.Depart, TMAX.Rank_wc) %>%
+  select(district, tmaxDeparture, tmaxRank_HotCold) %>%
   left_join(temps.depart %>%
               filter(waterYr == water.yr & 
                      waterMonth == target.month$waterMonth &
-                     element == "TMIN") %>%
-              mutate(Departure = round(Departure, 2),
-                     TMIN.Rank_wc = paste(Warmest, Coolest, sep = "|")) %>%
-              rename(TMIN.Depart = Departure) %>%
+                     element == "tmin") %>%
+              mutate(tminDeparture = round(depart, 2),
+                     tminRank_HotCold = paste(warmest, coolest, sep = "|")) %>%
               ungroup() %>%
-              select(district, TMIN.Depart, TMIN.Rank_wc)) %>%
+              select(district, tminDeparture, tminRank_HotCold)) %>%
   left_join(prcp.pct %>%
               filter(waterYr == water.yr & 
-                     waterMonth == target.month$waterMonth) %>%
-              mutate(WY.PctAvg = round(WY.PctAvg, 2), 
-                     PRCP.WY.Rank_dw = paste(WY.Driest, WY.Wettest, 
+                       mthName == target.month$mthName) %>%
+              mutate(wyPctAvg = round(wyPctAvg, 2), 
+                     wyRank_DryWet = paste(wyDriest, wyWettest, 
                                           sep = "|")) %>%
               ungroup() %>%
-              select(district, WY.PctAvg, PRCP.WY.Rank_dw)) %>%
-  left_join(districts %>% select(district, Duration.yrs))
+              select(district, wyPctAvg, wyRank_DryWet)) %>%
+  left_join(select(stations, district, startDate, endDate) %>%
+              mutate(duration.yrs = round(as.numeric(endDate - startDate)/365, 2)))
 
-#-- Format datasets for workbook
-tmax.sum <- temp.sum %>% filter(element == "TMAX")
-tmin.sum <- temp.sum %>% filter(element == "TMIN")
-
-# Designate directory
-my.dir = ("P:/1_ResourceStewardshipScience/Natural Resource Program/Climate and weather/1 Trends/5 Analysis/R/BiweeklyUpdate/Biweekly Update")
-#my.dir <- paste(getwd(), "Biweekly Update", sep = "/")
 
 #-- Save as *.xlsx
-# Create workbook and write Biweekly Update summary
-my.file = paste(today(), "SEUG_ClimateSummary.xlsx", sep = "_")
+# Designate directory
+my.dir <- paste(getwd(), "Results", sep = "/")
+
+# Create file name
+my.file = paste(today(), "ClimateSummary.xlsx", sep = "_")
+
+# Create and save Excel workbook
 write.xlsx(data.frame(bwu.sum), file = paste(my.dir, my.file, sep = "/"), 
-           sheetName = paste("Summary", target.month$mthName, sep = "_"), 
+           sheetName = paste(target.month$mthName, "Summary", sep = "_"), 
            row.names = F)
 
 # Load workbook
@@ -342,11 +345,13 @@ my.wb = loadWorkbook(paste(my.dir, my.file, sep = "/"))
 
 # Add TMAX data
 my.sheet = createSheet(my.wb, sheetName = "TMAX")
-addDataFrame(data.frame(tmax.sum), my.sheet, row.names = F)
+addDataFrame(data.frame(filter(temp.sum, element == "tmax")), 
+             my.sheet, row.names = F)
 
 # Add TMIN data
 my.sheet = createSheet(my.wb, sheetName = "TMIN")
-addDataFrame(data.frame(tmin.sum), my.sheet, row.names = F)
+addDataFrame(data.frame(filter(temp.sum, element == "tmin")), 
+             my.sheet, row.names = F)
 
 # Add PRCP data
 my.sheet = createSheet(my.wb, sheetName = "PRCP")
@@ -356,6 +361,5 @@ addDataFrame(data.frame(prcp.sum), my.sheet, row.names = F)
 saveWorkbook(my.wb, file = paste(my.dir, my.file, sep = "/"))
 
 # End Script ----
-rm(list = ls(all.names = T))
-now()
+print(paste0("This script was ran on ", now(), "."))
 sessionInfo()
