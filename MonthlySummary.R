@@ -288,8 +288,7 @@ p1 <- ggplot(prcp.fig.dat, aes(x = mthName, y = Value, fill = Var)) +
 p1
 
 # Save
-my.dir = ("P:/1_ResourceStewardshipScience/Natural Resource Program/Climate and weather/1 Trends/5 Analysis/R/BiweeklyUpdate/Biweekly Update")
-#my.dir <- paste(getwd(), "Figures", sep = "/")
+my.dir <- paste(getwd(), "Figures", sep = "/")
 fig.title <- paste(today(), "SEUG_PRCP.png", sep = "_")
 ggsave(fig.title, p1, device = "png", path = my.dir, 
        width = 9.7, height = 5.2, units = "in", dpi = 500)
