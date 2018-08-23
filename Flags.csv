@@ -1,0 +1,53 @@
+Type,Flag,Definition
+SFLAG,0, U.S. Cooperative Summary of the Day (NCDC DSI-3200)
+SFLAG,6, CDMP Cooperative Summary of the Day (NCDC DSI-3206)
+SFLAG,7, U.S. Cooperative Summary of the Day -- Transmitted via WxCoder3 (NCDC DSI-3207)
+SFLAG,A     ," U.S. Automated Surface Observing System (ASOS) real-time data (since January 1, 2006)"
+SFLAG,a     , Australian data from the Australian Bureau of Meteorology
+SFLAG,B     , U.S. ASOS data for October 2000-December 2005 (NCDC DSI-3211)
+SFLAG,b     , Belarus update
+SFLAG,C     , Environment Canada
+SFLAG,D     , Short time delay US National Weather Service CF6 daily summaries provided by the High Plains Regional ClimateCenter
+SFLAG,E     ," European Climate Assessment and Dataset (Klein Tank et al., 2002)"
+SFLAG,F     , U.S. Fort data 
+SFLAG,G     , Official Global Climate Observing System (GCOS) or other government-supplied data
+SFLAG,H     , High Plains Regional Climate Center real-time data
+SFLAG,I     , International collection (non U.S. data received through personal contacts)
+SFLAG,K     , U.S. Cooperative Summary of the Day data digitized from paper observer forms (from 2011 to present)
+SFLAG,M     , Monthly METAR Extract (additional ASOS data)
+SFLAG,N     ," Community Collaborative Rain, Hail,and Snow (CoCoRaHS)"
+SFLAG,Q     ," Data from several African countries that had been ""quarantined"", that is, withheld from public release until permission was granted from the respective meteorological services"
+SFLAG,R     , NCEI Reference Network Database (Climate Reference Network and Regional Climate Reference Network)
+SFLAG,r     , All-Russian Research Institute of Hydrometeorological  Information-World Data Center
+SFLAG,S     ," Global Summary of the Day (NCDC DSI-9618). These values are derived from hourly synoptic reports exchanged on the Global Telecommunications System (GTS). Daily values derived in this fashion may differ significantly from ""true"" daily data, particularly for precipitation  (i.e., use with caution)."
+SFLAG,s     , China Meteorological Administration/National Meteorological Information Center/Climatic Data Center (http://cdc.cma.gov.cn)
+SFLAG,T     , SNOwpack TELemtry (SNOTEL) data obtained from the U.S. Department of Agriculture's Natural Resources Conservation Service
+SFLAG,U     , Remote Automatic Weather Station (RAWS) data obtained from the Western Regional Climate Center
+SFLAG,u     , Ukraine update          
+SFLAG,W     , WBAN/ASOS Summary of the Day from NCDC's Integrated Surface Data (ISD).  
+SFLAG,X     , U.S. First-Order Summary of the Day (NCDC DSI-3210)
+SFLAG,Z     , Datzilla official additions or replacements 
+SFLAG,z     , Uzbekistan update
+MFLAG,A,value in precipitation or snow is a multi-day total
+MFLAG,B,precipitation total formed from two 12-hour totals
+MFLAG,D,precipitation total formed from four six-hour totals
+MFLAG,K,converted from knots
+MFLAG,L,temperature appears to be lagged with respect to reported hour of observation
+MFLAG,O,converted from oktas
+MFLAG,P,identified as 'missing presumed zero' in DSI 3200 and 3206
+MFLAG,T,"trace of precipitation, snowfall, or snow depth"
+MFLAG,W,converted from 16-point WBAN code (for wind direction)
+QFLAG,D,failed duplicate check
+QFLAG,G,failed gap check
+QFLAG,I,failed internal consistency check
+QFLAG,K,failed streak/frequent-value check
+QFLAG,L,failed check on length of multiday period
+QFLAG,M,failed megaconsistency check
+QFLAG,N,failed naught check
+QFLAG,O,failed climatological outlier check
+QFLAG,R,failed lagged range check
+QFLAG,S,failed spatial consistency check
+QFLAG,T,failed temporal consistency check
+QFLAG,W,temperature too warm for snow
+QFLAG,X,failed bounds check
+QFLAG,Z,flagged as a result of an official Datzilla investigation

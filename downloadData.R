@@ -21,7 +21,7 @@ library("lubridate")
 #-- Download date
 downloadDate = today()
 
-#-- Station Metadata
+#-- Station metadata
 #' Get station IDs and metadata
 #' This step takes some time to run, as the metadata file from GHCN is huge
 stations <- ghcnd_stations() %>% # Download station metadata from GHCN
@@ -41,12 +41,14 @@ stations <- ghcnd_stations() %>% # Download station metadata from GHCN
                                       "NABR", "MOAB")))
 knitr::kable(stations)
 
-#-- Weather Data
+#-- Weather data
 #' Clear GHCND cache files to ensure data are downloaded to current date
 ghcnd_clear_cache()
 
 #' Download data from the Global Histoic Climate Network
-dat.raw <- meteo_pull_monitors(as.vector(stations$id))
+# meteo_pull_monitors()
+dat.raw <- meteo_pull_monitors(monitors = stations$id, keep_flags = T, 
+                               var = c("PRCP", "TMAX", "TMIN"))
 
 #' Convert from wide to long data
 wx.dat <- dat.raw %>%
@@ -68,8 +70,8 @@ wx.dat <- dat.raw %>%
               separate(element, c("flag", "element"), "_") %>%  
               mutate(key = paste0(id, as.numeric(date), element)) %>%
               select(key, SFLAG)) %>%
-  left_join(select(stations, id, parkunit, district)) %>%
-  select(key, id, parkunit, district)
+  left_join(select(stations, id, parkUnit, district)) %>%
+  select(key, id, parkUnit, district, date, element, value, MFLAG, QFLAG, SFLAG)
   
 #-- Append metadata
 stations <- stations %>%
@@ -78,9 +80,8 @@ stations <- stations %>%
               summarise(startDate = min(date, na.rm = T),
                         endDate = max(date, na.rm = T)))
 
-
 #+ QAQC ----
-#-- Flag definitions
+#-- Load GHCND flag definitions
 flags <- read.csv("Flags.csv", stringsAsFactors = F)
 
 #-- Measurement flags (MFLAGs)
@@ -113,13 +114,14 @@ wx.dat %>%
   select(Definition) %>%
   distinct()
 
-#+ Clean Data ----
+#-- Clean data
 wx.dat <- wx.dat %>%
-  mutate(value = ifelse(QFLAG %in% qflags$QFLAG, NA, value)) %>%
-  select(key, id, parkUnit, district, date, element, value, MFLAG, QFLAG, SFLAG)
-  arrange(id, date, element)
+  mutate(value = ifelse(QFLAG %in% qflags$QFLAG, NA, value))
 
 #+ End Script ----
-save(wx.dat, download.date, stations, flags, file = "Climate.RData")
+#-- Save data
+save(dat.raw, flags, stations, wx.dat, downloadDate, file = "Climate.RData")
+
+# View session info
 print(paste0("This script was ran on ", now(), "."))
 sessionInfo()
