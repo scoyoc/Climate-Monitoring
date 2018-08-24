@@ -275,21 +275,21 @@ prcp.fig.dat <- prcp.pct %>%
   
 # Plot figure
 # Custom title and text
-my.title <- "Percent average precipitation at SEUG visitor centers\nfor water year 2018  to date"
+my.title <- "Total precipitation at SEUG visitor centers for water year 2018  to date\nPresented as a percentage of the 30-yr average (1981-2010)"
 my.text <- paste0("Data were downloaded on ", downloadDate, ".")
 
 p1 <- ggplot(prcp.fig.dat, aes(x = mthName, y = Value, fill = Var)) +
   geom_bar(stat = "identity", position = position_dodge(), color = "black") +
   scale_fill_manual(values = c("green3", "green4"), 
-                    labels = c("% of Montly Avg", "% of Water Year Avg")) +
+                    labels = c("Monthly Total", "Water Year Total")) +
   geom_hline(aes(yintercept = 100), linetype="dashed", size = 1.0, 
              color = "grey40") +
   facet_wrap(~ district) +
-  labs(x = "Month", y = "% of Average", title = my.title) +
+  labs(x = "Month", y = "% of 30-yr Average", title = my.title) +
   theme_bw() + 
   my.theme +
   theme(axis.text.x  = element_text(angle=90, vjust=0.5), 
-        legend.position = c(0.725, 0.15))
+        legend.position = c(0.705, 0.15))
 p1 <- ggdraw(p1) + draw_label(my.text, x = 0.80, y = 0.12, size = 12)
 p1
 
