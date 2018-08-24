@@ -6,7 +6,7 @@ Moab, UT to explore trends in the climate record.
 
 ## Description
 This repository contains a series of R script to download and summarize GHCND 
-data using R and the rnoaa package (Chamberlain et. al, 2017).
+data using R and the [rnoaa](https://cran.r-project.org/web/packages/rnoaa/) package (Chamberlain et. al, 2017).
 
 * First use [downloadData.R](downloadData.R) to download GCHND data from the Arches 
 and Canyonlands National Parks and Hovenweep and Natural Bridges National Monuments
@@ -17,6 +17,7 @@ file.
 given water year.
   * [monthlySummary.R](monthlySummary.R) produces two figures, one summarizing 
   temperature and one summarizing precipitation, and an Excel workbook.
+  * [EOY_Report.Rmd](EOY_Report.Rmd) has not been run lately and needs some work. A project I will pick up around mid November 2018. 
 
 ### Examples of figures produced using [downloadData.R](downloadData.R)
 
