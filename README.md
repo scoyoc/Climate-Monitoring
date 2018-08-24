@@ -1,15 +1,26 @@
----
-title: "README"
-author: "Matthew Van Scoyoc"
-date: "24 August, 2018"
----
+# Southeast Utah National Park Unit Climate Monitoring
+Download and summarize [Global Historic Climatology Network Daily (GHCND)](https://www.ncdc.noaa.gov/ghcn-daily-description)data using R and the [rnoaa](https://cran.r-project.org/web/packages/rnoaa/) package (Chamberlain et. al, 
+2017). This project downloads and summarize Co-op weather data from Arches and 
+Canyonlands National Park, Hovenweep and Natural Bridges National Monuments, and
+Moab, UT to explore trends in the climate record.
 
-# Climate-Monitoring
-Download and summarise Global Historic Climatology Netowork Daily (GHCND) 
-(<https://www.ncdc.noaa.gov/ghcn-daily-description>)data using R and the rnoaa
-package. This project downlaods and summarises Co-op weather data from Arches and 
-Canyonlands National Park, Hovenweep and Natrual Bridges National Monuments, 
-and Moab, UT to explore trends in the climate record.
+## Description
+This repository contains a series of R script to download and summarize GHCND 
+data using R and the rnoaa package (Chamberlain et. al, 2017).
+
+* First use [downloadData.R](downloadData.R) to download GCHND data from the Arches 
+and Canyonlands National Parks and Hovenweep and Natural Bridges National Monuments
+Co-op stations at the visitor centers. This script saves the data in the Climate.RData
+file.
+* Once the data are downlaoded, [monthlySummary.R](monthlySummary.R) or 
+[EOY_Report.Rmd](EOY_Report.Rmd) can be used to produce summaries of the data for a 
+given water year.
+
+### Examples of figures produced using [downloadData.R](downloadData.R)
+
+![tempFig.png](tempFig.png)
+
+![prcpFig.png](prcpFig.png)
 
 ## Authors
 * **Matthew Van Scoyoc** - *Initial work* - [scoyoc](https://github.com/scoyoc)
