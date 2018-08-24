@@ -12,11 +12,11 @@ data using R and the rnoaa package (Chamberlain et. al, 2017).
 and Canyonlands National Parks and Hovenweep and Natural Bridges National Monuments
 Co-op stations at the visitor centers. This script saves the data in the Climate.RData
 file.
-* Once the data are downlaoded, [monthlySummary.R](monthlySummary.R) or 
+* Once the data are downloaded, [monthlySummary.R](monthlySummary.R) or 
 [EOY_Report.Rmd](EOY_Report.Rmd) can be used to produce summaries of the data for a 
 given water year.
   * [monthlySummary.R](monthlySummary.R) produces two figures, one summarizing 
-  temperature and one summarizing percipitation, and an Excel workbook.
+  temperature and one summarizing precipitation, and an Excel workbook.
 
 ### Examples of figures produced using [downloadData.R](downloadData.R)
 
