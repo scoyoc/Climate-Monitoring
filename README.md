@@ -15,6 +15,8 @@ file.
 * Once the data are downlaoded, [monthlySummary.R](monthlySummary.R) or 
 [EOY_Report.Rmd](EOY_Report.Rmd) can be used to produce summaries of the data for a 
 given water year.
+  * [monthlySummary.R](monthlySummary.R) produces two figures, one summarizing 
+  temperature and one summarizing percipitation, and an Excel workbook.
 
 ### Examples of figures produced using [downloadData.R](downloadData.R)
 
