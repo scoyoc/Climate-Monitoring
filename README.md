@@ -1,5 +1,5 @@
 # Southeast Utah National Park Unit Climate Monitoring
-Download and summarize [Global Historic Climatology Network Daily (GHCND)](https://www.ncdc.noaa.gov/ghcn-daily-description)data using R and the [rnoaa](https://cran.r-project.org/web/packages/rnoaa/) package (Chamberlain et. al, 
+Download and summarize [Global Historic Climatology Network Daily (GHCND)](https://www.ncdc.noaa.gov/ghcn-daily-description) data using R and the [rnoaa](https://cran.r-project.org/web/packages/rnoaa/) package (Chamberlain et. al, 
 2017). This project downloads and summarize Co-op weather data from Arches and 
 Canyonlands National Park, Hovenweep and Natural Bridges National Monuments, and
 Moab, UT to explore trends in the climate record.
