@@ -19,7 +19,7 @@ given water year.
   temperature and one summarizing precipitation, and an Excel workbook.
   * [EOY_Report.Rmd](EOY_Report.Rmd) has not been run lately and needs some work. A project I will pick up around mid November 2018. 
 
-### Examples of figures produced using [downloadData.R](downloadData.R)
+### Examples of figures produced using [monthlySummary.R](monthlySummary.R)
 
 ![tempFig.png](tempFig.png)
 
