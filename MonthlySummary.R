@@ -3,23 +3,19 @@
 #' author: "Matthew W. Van Scoyoc"
 #' ---
 #'
-#' Developed: 08 August, 2017
-#' Updated: 
+#' Developed: 08 August 2017
+#' Updated: 24 August 2018
 #' Data files: SEUG_climate.RData
 #' Associated files:
-#' - GHCN Data Munge.R
-#' - SEUG_MonthlyPrecipReport_1.3.R
-#' - SEUG_MonthlyTempReport_1.1.R
+#' - downlaodData.R
 #' Associated directories: 
-#' - "C:/R/Climate"
-#' - "P:/1_ResourceStewardshipScience/Natural Resource Program/Climate and weather/1 Trends"
+#' - "C:/R/Climate-Monitoring"
 #' References: 
 #' Notes:
-#' Summarise temperature and precipitaiton records from SEUG weather 
-#' districts relative to historic measurements and the 1981-2010 30-year 
-#' reference period.
+#' Summarise temperature and precipitaiton records from SEUG Co-op weather stations 
+#' relative to historic measurements and the 1981-2010 30-year reference period.
 #' 
-#' A Microsoft Excel workbook is produced.
+#' Two figures and a Microsoft Excel workbook are produced.
 #' ----------------------------------------------------------------------
 
 # Setup ----
@@ -275,7 +271,7 @@ prcp.fig.dat <- prcp.pct %>%
   
 # Plot figure
 # Custom title and text
-my.title <- "Total precipitation at SEUG visitor centers for water year 2018  to date\nPresented as a percentage of the 30-yr average (1981-2010)"
+my.title <- "Total precipitation at SEUG visitor centers for water year 2018 to date\nPresented as a percentage of the 30-yr average (1981-2010)"
 my.text <- paste0("Data were downloaded on ", downloadDate, ".")
 
 p1 <- ggplot(prcp.fig.dat, aes(x = mthName, y = Value, fill = Var)) +
