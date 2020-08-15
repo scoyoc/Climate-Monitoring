@@ -16,6 +16,7 @@
 library("rnoaa")
 library("tidyverse")
 library("lubridate")
+library("knitr")
 
 #+ Data ----
 #-- Download date
@@ -38,13 +39,14 @@ stations <- ghcnd_stations() %>% # Download station metadata from GHCN
          district = factor(c("ARCH", "ISKY", "NEED", "MAZE", "HOVE", "MOAB", 
                              "NABR"), 
                            levels = c("ARCH", "ISKY", "NEED", "MAZE", "HOVE", 
-                                      "NABR", "MOAB")))
-knitr::kable(stations)
+                                      "NABR", "MOAB")), 
+         unitName = c("Arches National Park", 
+                      "Island in the Sky District, Canyonlands National Park", 
+                      "The Needles District, Canyonlands National Park", 
+                      "Hans Flat Ranger Station", "Hovenweep National Monument", 
+                      "Moab, Utah", "Natural Bridges National Monument"))
 
 #-- Weather data
-#' Clear GHCND cache files to ensure data are downloaded to current date
-ghcnd_clear_cache()
-
 #' Download data from the Global Histoic Climate Network
 # meteo_pull_monitors()
 dat.raw <- meteo_pull_monitors(monitors = stations$id, keep_flags = T, 
@@ -78,7 +80,8 @@ stations <- stations %>%
   left_join(wx.dat %>% 
               group_by(id) %>%
               summarise(startDate = min(date, na.rm = T),
-                        endDate = max(date, na.rm = T)))
+                        endDate = max(date, na.rm = T), 
+                        timespan = as.duration(startDate %--% endDate)/dyears(1)))
 
 #+ QAQC ----
 #-- Load GHCND flag definitions
@@ -119,8 +122,11 @@ wx.dat <- wx.dat %>%
   mutate(value = ifelse(QFLAG %in% qflags$QFLAG, NA, value))
 
 #+ End Script ----
+info <- sessionInfo()
+r.ver <- paste(info$R.version$major, info$R.version$minor, sep=".")
 #-- Save data
-save(dat.raw, flags, stations, wx.dat, downloadDate, file = "Climate.RData")
+save(dat.raw, flags, stations, wx.dat, downloadDate, info, r.ver, 
+     file = "Climate.RData")
 
 # View session info
 print(paste0("This script was ran on ", now(), "."))
