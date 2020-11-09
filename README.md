@@ -1,5 +1,5 @@
 # Climate Monitoring in Southeast Utah National Parks 
-This project downloads and summarizes Co-op weather station data from Arches (ARCH) and Canyonlands (CANY) national parks, Hovenweep (HoVE) and Natural Bridges (NABR) national monuments, and the City of Moab, UT  from the [Global Historical Climatology Network - Daily (GHCND)](https://www.ncdc.noaa.gov/ghcn-daily-description) using R and the [rnoaa](https://cran.r-project.org/web/packages/rnoaa/) package (Chamberlain et al., 2020).  
+This project downloads and summarizes Co-op weather station data from Arches (ARCH) and Canyonlands (CANY) national parks, Hovenweep (HOVE) and Natural Bridges (NABR) national monuments, and the City of Moab, UT  from the [Global Historical Climatology Network - Daily (GHCND)](https://www.ncdc.noaa.gov/ghcn-daily-description) using R and the [rnoaa](https://cran.r-project.org/web/packages/rnoaa/) package (Chamberlain et al., 2020).  
 
 ## Description
 This repository contains a series of R and RMarkdown scripts that download and summarize data from the GHCND.
@@ -15,8 +15,7 @@ This repository contains a series of R and RMarkdown scripts that download and s
 
 ## Figures
 Example of figure produced from wySummary.R. This figure is of temperature trends for water year 2020.
-![20201105_2020_Temp Trends.png](https://github.com/scoyoc/Climate-Monitoring/blob/master/Results/20201105_2020_Temp%Trends.png)
-![2020-08-14_Temperature 
+![20201105_2020_Temp Trends.png](https://github.com/scoyoc/Climate-Monitoring/blob/master/Results/20201105_2020_Temp%20Trends.png)
 
 ## Authors
 * **Matthew Van Scoyoc** - *Initial work* - [scoyoc](https://github.com/scoyoc)
