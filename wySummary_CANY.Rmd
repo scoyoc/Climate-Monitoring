@@ -1,0 +1,360 @@
+---
+title: "Climate Summary for Canyonlands National Park"
+author: "Matthew Van Scoyoc"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+```{r Setup, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+#-- Packages
+# install.packages(c("tidyverse", "lubridate", "cowplot", "knitr"))
+library("tidyverse") # Data manipulation
+library("lubridate") # Easily work with date/time data
+library("cowplot") # Streamlining for ggplot2
+library("knitr") # Makes nice tables in output
+
+#-- Custom functions --
+#-- Create temp dataframes
+temps.dat.fn <- function(wx.dat, my.dist, last.day){
+  
+  #-- Subset temp data
+  temp.dat <- wx.dat %>%
+    filter(element != "prcp" & 
+           district == my.dist & date <= last.day) %>%
+    mutate(degC = value / 10) %>%  # Convert to Celsius
+    select(-value)
+  #-- 30-yr Temp Stats (1981-2010 water years)
+  temps.30yr <- temp.dat %>%
+    filter(waterYr >= 1981 & waterYr <= 2010) %>%
+    group_by(element, district, waterMonth) %>%
+    summarise(mean.30yr = mean(degC, na.rm = T)) %>%
+    left_join(month.df) %>%
+    select(element, district, mthName, mean.30yr)
+  #-- Monthly Temp Departures
+  temps.depart <- temp.dat %>%
+    select(parkUnit, district, waterYr, date, month, element, degC) %>%
+    left_join(month.df) %>%
+    group_by(element, district, waterYr, mthName) %>%
+    summarise(mean.degC = mean(degC, na.rm = T)) %>%
+    left_join(temps.30yr) %>%
+    mutate(departure = mean.degC - mean.30yr,
+           year = ifelse(mthName %in% c("Oct", "Nov", "Dec"), waterYr - 1, waterYr), 
+           mid.date = ymd(paste(year, mthName, 15, sep = "-"))) %>%
+    arrange(element, mid.date)
+  #-- Rank departures
+  temps.rank <- temps.depart %>%
+    group_by(element, district, mthName) %>%
+    mutate(warmest = min_rank(-mean.degC),
+           coolest = min_rank(mean.degC)) %>%
+    arrange(element, district, mthName, warmest)
+  x <- list(temp.dat, temps.30yr, temps.depart, temps.rank)
+  names(x) <- c("dat", "Avg30yr", "depart", "rank")
+  return(x)
+}
+
+#-- Create temp figure
+temp.fig <- function(dat){
+  t1 <- ggplot(dat, aes(x = mid.date, y = departure)) +
+    geom_bar(data = filter(dat, departure >= 0), stat = "identity",
+             position = position_dodge(), color = "red", fill = "red") +
+    geom_bar(data = filter(dat, departure < 0), stat = "identity",
+             position = position_dodge(), color = "blue", fill = "blue") +
+    geom_hline(aes(yintercept = 0), linetype="solid", size = 0.5, color = "black") +
+    facet_wrap(~ element, nrow = 2, ncol = 1, scales = "free_y",
+               labeller = as_labeller(c(tmax = "Daily maximum temperature (TMAX)", 
+                                        tmin = "Daily minimum temperature (TMIN)"))) +
+    labs(x = "Year", y = "Departure (°C)", title = "Departure of avg. monthly temps") +
+    my.theme
+  t2 <- ggplot(dat, aes(x = mthName, y = departure, group = waterYr)) +
+    geom_line(stat = "identity", color = "gray") +
+    geom_text(data = parkUnit, mapping = aes(x = Inf, y = -Inf, label = label), 
+              color = "gray40", hjust = 1.2, vjust = -1) +
+    geom_line(data = filter(dat, waterYr == water.yr), stat = "identity", 
+              color = "red3", size = 1.5) +
+    geom_text(data = parkUnit, mapping = aes(x = Inf, y = Inf, label = waterYr), 
+              color = "red3", hjust = 2, vjust = 1.5) +
+    geom_hline(aes(yintercept = 0), linetype="dashed", size = 0.75, color = "black") +
+    facet_wrap(~ element, nrow = 2, ncol = 1,  scales = "free_y",
+               labeller = as_labeller(c(tmax = "Daily maximum temperature (TMAX)", 
+                                        tmin = "Daily minimum temperature (TMIN)"))) +
+    labs(title = paste("WY", water.yr, "relative to other years", sep = " ")) +
+    my.theme +
+    theme(axis.title.y = element_blank(), 
+          axis.text.x  = element_text(angle=45, vjust=0.5))
+  return(multiplot(t1, t2, cols = 2))
+}
+
+#-- Create PRCP dataframes
+prcp.dat.fn <- function(wx.dat, my.dist, last.day){
+  #-- Subset PRCP data
+  prcp.dat <- wx.dat %>%
+    filter(element == "prcp" & 
+             district == my.dist & date <= last.day) %>%
+    mutate(PRCPmm = value / 10, 
+           PRCPin = PRCPmm * (1/25.4)) %>% # Convert to inches
+    select(-value)
+  #-- 30-yr PRCP Stats (1981-2010 water years)
+  prcp.30yr = prcp.dat %>%
+    filter(waterYr >= 1981 & waterYr <= 2010) %>%
+    group_by(district, waterYr, mthName) %>%
+    summarise(element = "mth", 
+              Obs = sum(PRCPmm, na.rm = T))
+  wy.30yr <- prcp.30yr %>%
+    mutate(element = "wy", 
+           Obs = cumsum(Obs))
+  prcp.30yr <- bind_rows(prcp.30yr, wy.30yr) %>%
+    group_by(district, mthName, element) %>%
+    summarise(mean.30yr = mean(Obs), 
+              sd.30yr = sd(Obs))
+  #- Calculate percent average and departure
+  # Calculate monthly precip totals
+  mth.prcp <- prcp.dat %>%
+    select(district, year, waterYr, mthName, date, PRCPmm) %>%
+    group_by(district, year, waterYr, mthName) %>%
+    summarise(element = "mth", 
+              Obs = sum(PRCPmm, na.rm = T))
+  # Calculate water year precip totals
+  wy.prcp <- mth.prcp %>%
+    mutate(element = "wy", 
+           Obs = cumsum(Obs))
+  # Combine dataframes and calculate pct avg and departure
+  pct.prcp <- bind_rows(mth.prcp, wy.prcp) %>%
+    left_join(prcp.30yr) %>%
+    mutate(pct.avg = (Obs / mean.30yr) * 100,
+           departure = Obs - mean.30yr,
+           mid.date = ymd(paste(year, mthName, 15, sep = "-")))
+  # Rank monthly accumulations by water year.
+  wy.rank <- wy.prcp %>%
+    group_by(district, mthName) %>%
+    mutate(Wettest = min_rank(-Obs),
+           Driest = min_rank(Obs))
+  x <- list(prcp.dat, prcp.30yr, pct.prcp, wy.rank)
+  names(x) <- c("dat", "Avg30yr", "pct", "rank")
+  return(x)
+}
+
+#-- Create PRCP figure
+prcp.fig <- function(dat){
+  p1 <- ggplot(dat, aes(x = mid.date, y = pct.avg)) +
+    geom_bar(data = filter(dat, pct.avg >= 100), stat = "identity",
+             position = position_dodge(), color = "forestgreen", fill = "forestgreen") +
+    geom_bar(data = filter(dat, pct.avg < 100), stat = "identity",
+             position = position_dodge(), color = "chocolate3", fill = "chocolate3") +
+    geom_hline(aes(yintercept = 100), linetype="dashed", size = 0.75, 
+               color = "black") +
+    facet_wrap(~ element, nrow = 2, ncol = 1,  scales = "free_y",
+               labeller = as_labeller(c(mth = "Monthly precipitation totals", 
+                                        wy = "Water year accumulation"))) +
+    labs(x = "Year", y = "Percent (%)", title = "Percent avg. monthly precip.") +
+    my.theme
+  p2 <- ggplot(dat, aes(x = mthName, y = pct.avg, group = waterYr)) +
+    geom_line(stat = "identity", color = "gray") +
+    geom_text(data = parkUnit, mapping = aes(x = -Inf, y = Inf, label = label), 
+              color = "gray40", hjust = -0.5, vjust = 1.5) +
+    geom_line(data = filter(dat, waterYr == water.yr), stat = "identity", 
+              color = "forestgreen", size = 1.5) +
+    geom_text(data = parkUnit, mapping = aes(x = Inf, y = Inf, label = waterYr), 
+              color = "forestgreen", hjust = 1.25, vjust = 1.5) +
+    geom_hline(aes(yintercept = 100), linetype="dashed", size = 0.75, color = "black") +
+    facet_wrap(~ element, nrow = 2, ncol = 1,  scales = "free_y",
+               labeller = as_labeller(c(mth = "Monthly precipitation totals", 
+                                        wy = "Water year accumulation"))) +
+    labs(title = paste("WY", water.yr, "relative to other years", sep = " ")) +
+    my.theme +
+    theme(axis.title.y = element_blank(), 
+          axis.text.x  = element_text(angle=45, vjust=0.5))
+  return(multiplot(p1, p2, cols = 2))
+}
+#-- Multiplot functino from Cookbook for R
+# http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+#-- Figure Themes
+# ggplot theme settings
+my.theme <- theme_bw() + 
+  theme(strip.background = element_rect(fill="white"), 
+        strip.text = element_text(hjust = 0.1), 
+        axis.title.x = element_blank())
+
+#-- List of months
+month.df <- data.frame(month = 1:12, 
+                       waterMonth = c(4:12, 1:3),
+                       mthName = factor(month.abb, 
+                                        levels = c(month.abb[10:12], 
+                                                   month.abb[1:9])))
+
+#-- Set desired water year and month
+water.yr = 2020
+```
+
+```{r Data, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+#-- Load .RData
+load("climateData.RData")
+
+# Add years and months to wx.dat
+wx.dat <- wx.dat %>%
+  mutate(value = as.numeric(value),
+         month = month(date), 
+         year = year(date), 
+         waterYr = ifelse(month >= 10, year + 1, year)) %>%
+  left_join(month.df)
+```
+This document summarizes current temperature and precipitation anomalies relative to 30-year (1981-2010) normals for Canyonlands National Park for the `r water.yr` water year (October `r water.yr-1` through September `r water.yr`). 
+The data were collected at the NPS Visitor Centers. 
+The data were downloaded from the Global Historic Climatology Network on `r format(as.Date(downloadDate, format = "%Y-%m-%d"), "%d %B, %Y")` using R (ver. `r r.ver`, R Core Team, 2020) and the rnoaa package (ver `r info$otherPkgs$rnoaa$Version`, Chamberlain 2020).  
+
+```{r ISKY, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+#-- Filter data by desired district
+my.dist <- "ISKY"
+parkUnit <- filter(stations, district == my.dist) %>%
+  mutate(label = paste(year(startDate), year(endDate), sep = " - "), 
+         waterYr = water.yr, 
+         unitName = "Island in the Sky District")
+```
+
+# `r parkUnit$unitName`
+## Temperature
+```{r ISKY.TempData, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+temps <- temps.dat.fn(wx.dat, my.dist, target.month$LastDay)
+```
+`r month.name[target.month$month]` `r water.yr` was the `r filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$warmest`th warmest `r month.name[target.month$month]` in the `r round(parkUnit$timespan, 0)`-year record for `r parkUnit$unitName` (`r year(parkUnit$startDate)` to `r year(parkUnit$endDate)`).
+The average daily low (TMIN) was `r abs(round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$departure, 2))`°C `r ifelse(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$departure > 0, "above", "below")` normal at `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$mean.degC, 1)`°C. 
+The  30-year average daily low for `r month.name[target.month$month]` is `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$mean.30yr, 1)`°C. 
+The average daily high (TMAX) was `r abs(round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$departure, 2))`°C `r ifelse(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$departure > 0, "above", "below")` normal at `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$mean.degC, 1)`°C. 
+The 30-year average daily high for `r month.name[month(max(temps$rank$mid.date))]` is `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$mean.30yr, 1)`°C. 
+
+```{r ISKY.TempFig, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+temp.fig(temps$depart)
+```
+
+\newpage
+## Precipitation
+```{r ISKY.PrcpData, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+prcp <- prcp.dat.fn(wx.dat, my.dist, target.month$LastDay)
+```
+Water year `r water.yr` is currently the `r filter(prcp$rank, waterYr == water.yr & mthName == target.month$mthName)$Driest`th driest on record out of the `r round(parkUnit$timespan, 0)`-year data set for `r parkUnit$unitName` (`r year(parkUnit$startDate)` to `r year(parkUnit$endDate)`). 
+The current accumulated precipitation is `r round(filter(prcp$pct, waterYr == water.yr & mthName == target.month$mthName & element == "wy")$pct.avg, 1)`% of normal, totaling `r filter(prcp$pct, waterYr == water.yr & mthName == target.month$mthName & element == "wy")$Obs` mm of precipitation. 
+The 30-year average for this time of year is `r round(filter(prcp$Avg30yr, mthName == target.month$mthName & element == "wy")$mean.30yr, 1)` mm of precipitation.
+
+```{r ISKY.PRCPFig, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+prcp.fig(prcp$pct)
+```
+
+\newpage
+
+```{r NEED, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+#-- Filter data by desired district
+my.dist <- "NEED"
+parkUnit <- filter(stations, district == my.dist) %>%
+  mutate(label = paste(year(startDate), year(endDate), sep = " - "), 
+         waterYr = water.yr, 
+         unitName = "The Needles District")
+```
+
+# `r parkUnit$unitName`
+## Temperature
+```{r NEED.TempData, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+temps <- temps.dat.fn(wx.dat, my.dist, target.month$LastDay)
+```
+`r month.name[target.month$month]` `r water.yr` was the `r filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$warmest`th warmest `r month.name[target.month$month]` in the `r round(parkUnit$timespan, 0)`-year record for `r parkUnit$unitName` (`r year(parkUnit$startDate)` to `r year(parkUnit$endDate)`).
+The average daily low (TMIN) was `r abs(round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$departure, 2))`°C `r ifelse(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$departure > 0, "above", "below")` normal at `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$mean.degC, 1)`°C. 
+The  30-year average daily low for `r month.name[target.month$month]` is `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$mean.30yr, 1)`°C. 
+The average daily high (TMAX) was `r abs(round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$departure, 2))`°C `r ifelse(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$departure > 0, "above", "below")` normal at `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$mean.degC, 1)`°C. 
+The 30-year average daily high for `r month.name[month(max(temps$rank$mid.date))]` is `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$mean.30yr, 1)`°C. 
+
+```{r NEED.TempFig, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+temp.fig(temps$depart)
+```
+
+\newpage
+## Precipitation
+```{r NEED.PrcpData, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+prcp <- prcp.dat.fn(wx.dat, my.dist, target.month$LastDay)
+```
+Water year `r water.yr` is currently the `r filter(prcp$rank, waterYr == water.yr & mthName == target.month$mthName)$Driest`th driest on record out of the `r round(parkUnit$timespan, 0)`-year data set for `r parkUnit$unitName` (`r year(parkUnit$startDate)` to `r year(parkUnit$endDate)`). 
+The current accumulated precipitation is `r round(filter(prcp$pct, waterYr == water.yr & mthName == target.month$mthName & element == "wy")$pct.avg, 1)`% of normal, totaling `r filter(prcp$pct, waterYr == water.yr & mthName == target.month$mthName & element == "wy")$Obs` mm of precipitation. 
+The 30-year average for this time of year is `r round(filter(prcp$Avg30yr, mthName == target.month$mthName & element == "wy")$mean.30yr, 1)` mm of precipitation.
+
+```{r NEED.PRCPFig, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+prcp.fig(prcp$pct)
+```
+
+\newpage
+
+```{r MAZE, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+#-- Filter data by desired district
+my.dist <- "MAZE"
+parkUnit <- filter(stations, district == my.dist) %>%
+  mutate(label = paste(year(startDate), year(endDate), sep = " - "), 
+         waterYr = water.yr, 
+         unitName = "Hans Flat Ranger Station")
+```
+# `r parkUnit$unitName`
+## Temperature
+```{r MAZE.TempData, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+temps <- temps.dat.fn(wx.dat, my.dist, target.month$LastDay)
+```
+`r month.name[target.month$month]` `r water.yr` was the `r filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$warmest`th warmest `r month.name[target.month$month]` in the `r round(parkUnit$timespan, 0)`-year record for `r parkUnit$unitName` (`r year(parkUnit$startDate)` to `r year(parkUnit$endDate)`).
+The average daily low (TMIN) was `r abs(round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$departure, 2))`°C `r ifelse(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$departure > 0, "above", "below")` normal at `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$mean.degC, 1)`°C. 
+The  30-year average daily low for `r month.name[target.month$month]` is `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmin")$mean.30yr, 1)`°C. 
+The average daily high (TMAX) was `r abs(round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$departure, 2))`°C `r ifelse(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$departure > 0, "above", "below")` normal at `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$mean.degC, 1)`°C. 
+The 30-year average daily high for `r month.name[month(max(temps$rank$mid.date))]` is `r round(filter(temps$rank, waterYr == water.yr & mthName == target.month$mthName & element == "tmax")$mean.30yr, 1)`°C. 
+
+```{r MAZE.TempFig, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+temp.fig(temps$depart)
+```
+
+\newpage
+## Precipitation
+```{r MAZE.PrcpData, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+prcp <- prcp.dat.fn(wx.dat, my.dist, target.month$LastDay)
+```
+Water year `r water.yr` is currently the `r filter(prcp$rank, waterYr == water.yr & mthName == target.month$mthName)$Driest`th driest on record out of the `r round(parkUnit$timespan, 0)`-year data set for `r parkUnit$unitName` (`r year(parkUnit$startDate)` to `r year(parkUnit$endDate)`). 
+The current accumulated precipitation is `r round(filter(prcp$pct, waterYr == water.yr & mthName == target.month$mthName & element == "wy")$pct.avg, 1)`% of normal, totaling `r filter(prcp$pct, waterYr == water.yr & mthName == target.month$mthName & element == "wy")$Obs` mm of precipitation. 
+The 30-year average for this time of year is `r round(filter(prcp$Avg30yr, mthName == target.month$mthName & element == "wy")$mean.30yr, 1)` mm of precipitation.
+
+```{r MAZE.PRCPFig, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+prcp.fig(prcp$pct)
+```
+
+## Citations
