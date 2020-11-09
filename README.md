@@ -14,7 +14,7 @@ This repository contains a series of R and RMarkdown scripts that download and s
 * The [renderSummaries.R](renderSummaries.R) script runs parameterized reports (e.g., my.park = "ARCH" and water.yr = 2020) that call wySummary.Rmd or wySummary_CANY.Rmd to render reports. The PDF's are then named with a date stamp and 4-letter park code and saved in the [Results sub-directory](https://github.com/scoyoc/Climate-Monitoring/blob/master/Results).
 
 ## Figures
-Example of figure produced from wySummary.R. This figure is of temperature trends for water year 2020.
+Example of figure produced from [wySummary_figures.R](wySummary_figures.R). This figure is of temperature trends for water year 2020.
 ![20201105_2020_Temp Trends.png](https://github.com/scoyoc/Climate-Monitoring/blob/master/Results/20201105_2020_Temp%20Trends.png)
 
 ## Authors
