@@ -60,7 +60,7 @@ my.theme <- theme_bw() +
 
 #-- Set desired park unit, water year, and month
 # These are parameters hashed our as they are set in renderWaterYearReports.Rmd.
-# my.park <- "MOAB"
+# my.park <- "NABR"
 # water.yr = 2020
 ```
 
@@ -253,6 +253,8 @@ wy.prcp.tot <- prcp.dat %>%
 mth.above <- filter(mth.prcp, waterYr == water.yr & departure > 0)
 mth.below <- filter(mth.prcp, waterYr == water.yr & departure < 0)
 prcp.lm <- summary(lm(Obs ~ waterYr, data = wy.prcp.tot))$coefficients[2, 1]
+
+filter(wy.prcp.tot, driest == 1)
 ```
 
 Water year `r water.yr` was the `r filter(wy.prcp.tot, waterYr == water.yr)$driest``r number.contraction(filter(wy.prcp.tot, waterYr == water.yr)$driest)` driest on record for `r my.park`. 
