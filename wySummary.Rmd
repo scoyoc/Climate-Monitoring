@@ -4,7 +4,6 @@ title: |
   | `r paste("Water Year", water.yr, "Climate Summary", sep = " ")`
 author: "Matthew Van Scoyoc"
 date: "`r Sys.Date()`"
-mainfont: Arial
 output:
   pdf_document: 
     fig_caption: yes
@@ -12,9 +11,10 @@ output:
     latex_engine: xelatex
 editor_options:
   chunk_output_type: console
+mainfont: Calibri Light
 urlcolor: blue
 ---
-
+\raggedright
 ```{r Setup, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
 #-- Packages
 # install.packages(c("tidyverse", "lubridate", "cowplot", "shadowtext", "knitr"))

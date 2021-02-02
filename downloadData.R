@@ -24,10 +24,10 @@
 #+ Setup ----
 #-- Packages
 # install.packages(c("rnoaa", "tidyverse", "lubridate", "knitr"))
-library("rnoaa")
-library("tidyverse")
-library("lubridate")
-library("knitr")
+library("rnoaa") # Pull data from NOAA
+library("tidyverse") # Data management
+library("lubridate") # Makes dating easier
+library("knitr") # Produce documents
 
 #+ Data ----
 #' Clear cache to ensure new data are downloaded.
