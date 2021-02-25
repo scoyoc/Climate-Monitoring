@@ -17,17 +17,19 @@ urlcolor: blue
 \raggedright
 ```{r Setup, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
 #-- Packages
-# install.packages(c("cowplot", "devtools", "knitr", "lubridate", "tidyverse",
-#                    "shadowtext"))
+# install.packages(c("cowplot", "devtools", "grid", "gridExtra", "knitr", 
+#                    "lubridate", "tidyverse", "shadowtext"))
 # devtools::install_github("scoyoc/climateAnalyzeR")
 library("climateAnalyzeR") # Import data from ClimateAnalyzer.org
 library("cowplot") # Streamlining for ggplot2
+library("grid")
+library("gridExtra")
 library("knitr") # Makes nice output
 library("lubridate") # Makes dating easier
 library("tidyverse") # Data manipulation
 library("shadowtext") # Figure detailing
 
-#-- Custom functions
+#-- Functions
 #- Number contraction
 # Prints the appropraite number contraction for a given number.
 number_contraction <- function(x) {
@@ -43,8 +45,8 @@ number_contraction <- function(x) {
   return(paste0(x, y))
 }
 
-#- Number contraction
-# Prints the appropraite number contraction for a given number.
+#- Visitor Center
+# Produces text appropraite for the visitor center.
 visitor_center <- function(my_park) {
   if (my_park == "CANY") {
     (y <- "Co-op weather stations at the ISKY, MAZE, and NEED visitor centers by NPS personnel")
@@ -56,7 +58,72 @@ visitor_center <- function(my_park) {
   return(y)
 }
 
-#-- Figure Theme
+#-- Figures
+# Standardized line graph using geom_area()
+area_figure <- function(dat, # Data to plot
+                        x_var, # The vector for the x-variable
+                        y_var, # The vector for the y-variable
+                        area_color, # The color of the area
+                        ref_dat,# 30-year reference period data
+                        line_color, # Color of line and points
+                        lab_dat, # Data to map labels
+                        lab_y, # Label location on y-axis
+                        my_title, # The title of the plot
+                        my_ylab # Title of y-axis
+                        ){
+  gg <- ggplot(dat, aes(x = x_var, y = y_var)) +
+    geom_area(aes(x = x_var, y = y_var),
+              stat = "identity", fill = area_color, alpha = 0.5, na.rm = TRUE) +
+    geom_hline(aes(yintercept = ref_dat),
+               linetype = "dashed", size = 0.5, color = "black") +
+    geom_line(stat = "identity", color = line_color, size = 1) +
+    geom_point(stat = "identity", color = line_color, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    geom_shadowtext(data = lab_dat, color = "black", bg.colour = "white",
+                    mapping = aes(x = -Inf, y = lab_y, label = Label),
+                    size = 3, hjust = -0.1, vjust = -0.5) +
+    coord_cartesian(xlim = c(min(dat$Year), max(dat$Year)), 
+                    ylim = c(floor(min(y_var, na.rm = T)), 
+                             ceiling(max(y_var, na.rm = T)))) +
+    labs(title = my_title, y = my_ylab) +
+    my_theme
+  return(gg)
+}
+
+# Standardized line graph grouped by year
+line_figure <- function(dat, # Data to plot
+                        x_var, # The vector for the x-variable
+                        y_var, # The vector for the y-variable
+                        my_yintercept, # The y-intercept for the reference line
+                        wy_dat, # Filtered data for the specific water year
+                        wy_xvar, # Filtered x-variable for the water year
+                        wy_yvar, # Filtered y-variable for the water year
+                        line_color, # Color of line and points
+                        lab_dat = park_unit, # Data to map labels
+                        my_title, # The title of the plot
+                        my_ylab # Title of y-axis
+                        ){
+  gg = ggplot(dat, aes(x = x_var, y = y_var, group = waterYr)) +
+    geom_line(stat = "identity", color = "gray") +
+    geom_hline(aes(yintercept = my_yintercept), linetype = "dashed", size = 0.5,
+               color = "black") +
+    geom_line(data = wy_dat, aes(x = wy_xvar, y = wy_yvar), 
+              stat = "identity", color = line_color, size = 1) +
+    geom_point(data = wy_dat, aes(x = wy_xvar, y = wy_yvar), 
+               stat = "identity", color = line_color, size = 2) +
+    geom_shadowtext(data = lab_dat, 
+                    mapping = aes(x = Inf, y = Inf, label = waterYr),
+                    color = line_color, bg.colour = "white", hjust = 2, 
+                    vjust = 1.5, fontface = "bold") +
+    geom_shadowtext(data = lab_dat, 
+                    mapping = aes(x = Inf, y = -Inf, label = label), 
+                    color = "gray40", bg.colour = "white", hjust = 1.4, 
+                    vjust = -1) +
+    labs(title = my_title, y = my_ylab) +
+    my_theme
+  return(gg)
+}
+
 # ggplot theme settings
 my_theme <- theme_bw() +
   theme(
@@ -66,7 +133,6 @@ my_theme <- theme_bw() +
   )
 
 #-- Session information (for text)
-#-- Session
 info <- sessionInfo()
 r_ver <- paste(info$R.version$major, info$R.version$minor, sep=".")
 ```
@@ -99,6 +165,7 @@ park_unit <- filter(readr::read_csv("stations.csv"), parkCode == my_park) %>%
 annual_dat  <- import_data("annual_wx", park_unit$stationid, 
                            park_unit$firstYear, water_yr, 
                            remove_missing = TRUE) %>%
+  filter(Year <= water_yr) %>%
   select(Year | contains("wy")) %>%
   mutate(TEMP_midpt = ifelse(is.na(TMAX_wy) | is.na(TMIN_wy), NA, 
                              ((TMAX_wy - TMIN_wy) / 2) + TMIN_wy), 
@@ -109,23 +176,28 @@ annual_dat  <- import_data("annual_wx", park_unit$stationid,
 # Calculate 30-year averages
 annual_30yr <- annual_dat %>%
   filter(Year >= 1981 & Year <= 2010) %>%
-  summarise(PRCP_30yr = mean(PRCP_wy, na.rm = T),
-            TEMP_mid_30yr = mean(TEMP_midpt, na.rm = T), 
-            TMAX_30yr = mean(TMAX_wy, na.rm = T),
-            TMIN_30yr = mean(TMIN_wy, na.rm = T))
+  summarise(PRCP = mean(PRCP_wy, na.rm = T),
+            TEMP_midpt = mean(TEMP_midpt, na.rm = T), 
+            TMAX = mean(TMAX_wy, na.rm = T),
+            TMIN = mean(TMIN_wy, na.rm = T))
 # Calculate annual departure
 annual_dat <- annual_dat %>%
-  mutate(PRCP_depart = PRCP_wy - annual_30yr$PRCP_30yr,
-         TEMP_mid_depart = TEMP_midpt - annual_30yr$TEMP_mid_30yr,
-         TMAX_depart = TMAX_wy - annual_30yr$TMAX_30yr, 
-         TMIN_depart = TMIN_wy - annual_30yr$TMIN_30yr)
-
+  mutate(PRCP_depart = PRCP_wy - annual_30yr$PRCP,
+         TEMP_mid_depart = TEMP_midpt - annual_30yr$TEMP_midpt,
+         TMAX_depart = TMAX_wy - annual_30yr$TMAX, 
+         TMIN_depart = TMIN_wy - annual_30yr$TMIN)
+# Remove the first row if there are no data
+if (sum(is.na(annual_dat[1, ])) == ncol(annual_dat) -1){
+  annual_dat = annual_dat[2:nrow(annual_dat), ]
+  }
 
 #-- Monthly Data ----
+# Monthly weather data
 mth_dat <- import_data("monthly_wx", park_unit$stationid, park_unit$firstYear, 
                         water_yr) %>%
   left_join(month_df) %>%
   mutate(waterYr = ifelse(Month >= 10, Year +1, Year)) %>%
+  filter(waterYr <= water_yr) %>%
   arrange(waterYr, waterMonth) %>%
   group_by(waterYr) %>%
   mutate(PRCP_accum = cumsum(PRCP)) %>%
@@ -136,12 +208,27 @@ mth_dat <- import_data("monthly_wx", park_unit$stationid, park_unit$firstYear,
          TEMP_mid_warmest = min_rank(-TEMP_midpt), 
          TMAX_warmest = min_rank(-TMAX),
          TMIN_warmest = min_rank(-TMIN))
+# Calculate 30-year monthly averages
+mth_30yr <-  mth_dat %>%
+  filter(waterYr >= 1981 & waterYr <= 2010) %>%
+  group_by(mthName) %>%
+  summarise(PRCP_30yr = mean(PRCP, na.rm = T),
+            PRCP_accum_30yr = mean(PRCP_accum, na.rm = T),
+            TEMP_midpt_30yr = mean(TEMP_midpt, na.rm = T), 
+            TMAX_30yr = mean(TMAX, na.rm = T),
+            TMIN_30yr = mean(TMIN, na.rm = T))
 
+# Monthly departure
 mth_depart <- import_data("departure", park_unit$stationid, 
                           park_unit$firstYear, water_yr, 
                           norm_per = "1981-2010") %>%
   left_join(month_df) %>%
-  mutate(waterYr = ifelse(Month >= 10, Year +1, Year))
+  mutate(waterYr = ifelse(Month >= 10, Year +1, Year)) %>%
+  filter(waterYr <= water_yr) %>%
+  left_join(left_join(mth_dat, mth_30yr) %>%
+              ungroup() %>%
+              mutate(PRCP_accum_depart = PRCP_accum - PRCP_accum_30yr) %>%
+              select(Year, mthName, PRCP_accum_depart))
 
 #-- Small subsets for text
 # Filter data sets by water_yr
@@ -167,121 +254,18 @@ tmin_lm <- summary(lm(TMIN_wy ~ Year, data = annual_dat))$coefficients[2, 1]
 This document summarizes current temperature and precipitation anomalies 
 relative to 30-year (1981-2010) averages for 
 `r park_unit$unitName` (`r my_park`) during the 
-`r water_yr` water year (October 
-`r water_yr-1` through September `r water_yr`). 
-The data for these analyses were collected at the 
-`r visitor_center(my_park)` 
+`r water_yr` water year (October `r water_yr-1` through September `r water_yr`). 
+The data for these analyses were collected at the `r visitor_center(my_park)` 
 and  downloaded from the [ClimateAnalyzer.org](http://www.climateanalyzer.org/) 
 on 
 `r format(as.Date(lubridate::today(), format = "%Y-%m-%d"), "%d %B, %Y")` 
 using R (ver. `r r_ver`, R Core Team, 2020) and the climateAnalyzeR package (ver 
 `r info$otherPkgs$climateAnalyzeR$Version`, Van Scoyoc, 2021). 
 The data used for these analyses include the daily high temperature (TMAX), 
-daily low temperature (TMIN), and daily precipitation accumulation (PRCP).
+daily low temperature (TMIN), and daily precipitation accumulation (PRCP). This 
+is an automated summary and all results are provisional.
   
 # Temperature
-```{r TempData, eval=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
-#-- Subset temp data
-temp.dat <- wx.dat %>%
-  filter(element != "prcp" & park_unit == my_park & waterYr <= water_yr) %>%
-  mutate(degC = value / 10) %>% # Convert to Celsius
-  select(-value)
-
-# -- Complete water years
-# This dataframe can be used to filter out incomplete water years.
-complete.wys <- temp.dat %>%
-  group_by(waterYr, mthName) %>%
-  summarise(mthObs = sum(degC, na.rm = T)) %>%
-  group_by(waterYr) %>%
-  summarise(n = n()) %>%
-  filter(n == 12)
-
-#-- Annual average temperatures
-# 30-yr average annual temperature
-an.temp.30yr <- temp.dat %>%
-  filter(waterYr >= 1981 & waterYr <= 2010) %>%
-  group_by(park_unit) %>%
-  summarise(mean.30yr = mean(degC, na.rm = T)) %>%
-  select(park_unit, mean.30yr)
-
-# Calculate and rank departure
-an.temp.depart <- temp.dat %>%
-  filter(waterYr %in% complete.wys$waterYr) %>%
-  group_by(park_unit, waterYr) %>%
-  summarise(mean.degC = mean(degC, na.rm = T)) %>%
-  left_join(an.temp.30yr) %>%
-  mutate(
-    departure = mean.degC - mean.30yr,
-    n = n()
-  ) %>%
-  mutate(
-    warmest = min_rank(-mean.degC),
-    coolest = min_rank(mean.degC)
-  ) %>%
-  arrange(waterYr)
-
-#-- Annual annual temperatures by element (TMAX/TMIN)
-# 30-yr average annual TMIN/TMAX
-an.ele.30yr <- temp.dat %>%
-  filter(waterYr >= 1981 & waterYr <= 2010) %>%
-  group_by(element) %>%
-  summarise(mean.30yr = mean(degC, na.rm = T))
-# Calculate and rank departure
-an.ele.depart <- temp.dat %>%
-  filter(waterYr %in% complete.wys$waterYr) %>%
-  group_by(element, waterYr) %>%
-  summarise(mean.degC = mean(degC, na.rm = T)) %>%
-  left_join(an.ele.30yr) %>%
-  mutate(
-    departure = mean.degC - mean.30yr,
-    n = n()
-  ) %>%
-  arrange(element, waterYr)
-
-#-- Monthly average temperatures
-# 30-yr Temp Stats (1981-2010 water years)
-temps.30yr <- temp.dat %>%
-  filter(waterYr >= 1981 & waterYr <= 2010) %>%
-  group_by(element, waterMonth) %>%
-  summarise(mean.30yr = mean(degC, na.rm = T)) %>%
-  left_join(month.df) %>%
-  select(element, mthName, mean.30yr)
-# Monthly Temp Departures
-temps.depart <- temp.dat %>%
-  filter(waterYr %in% complete.wys$waterYr) %>%
-  group_by(element, waterYr, mthName) %>%
-  summarise(
-    mean.degC = mean(degC, na.rm = T),
-    n = n()
-  ) %>%
-  left_join(temps.30yr) %>%
-  mutate(
-    departure = mean.degC - mean.30yr,
-    year = ifelse(mthName %in% c("Oct", "Nov", "Dec"), waterYr - 1, waterYr),
-    mid.date = ymd(paste(year, mthName, 15, sep = "-"))
-  ) %>%
-  arrange(element, mid.date)
-
-#-- References for text and figures
-data.label <- park_unit %>%
-  mutate(label = paste(min(an.ele.depart$waterYr),
-    max(an.ele.depart$waterYr) - 1,
-    sep = "-"
-  ))
-tmax.exceed <- temps.depart %>%
-  filter(waterYr == water_yr, element == "tmax" & departure > 0)
-tmin.exceed <- temps.depart %>%
-  filter(waterYr == water_yr, element == "tmin" & departure > 0)
-an.lm <- summary(lm(mean.degC ~ waterYr, data = an.temp.depart))$coefficients[2, 1]
-tmax.lm <- summary(lm(mean.degC ~ waterYr,
-  data = filter(an.ele.depart, element == "tmax")
-))$coefficients[2, 1]
-tmin.lm <- summary(lm(mean.degC ~ waterYr,
-  data = filter(an.ele.depart, element == "tmin")
-))$coefficients[2, 1]
-
-```
-
 Water year `r water_yr` was the 
 `r number_contraction(text_refs$TEMP_mid_warmest)` warmest water year in the 
 `r text_refs$timespan`-year record for 
@@ -318,99 +302,11 @@ The monthly average TMIN exceeded the 30-year monthly average
 ; figure 3B).
 
 # Precipitation
-```{r PrcpData, eval=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
-#-- Subset PRCP data
-prcp.dat <- wx.dat %>%
-  filter(element == "prcp" & park_unit == my_park & waterYr <= water_yr) %>%
-  mutate(PRCPmm = value / 10) %>% # Convert to inches
-  select(-value)
-
-# -- Complete water years
-# This dataframe can be used to filter out incomplete water years.
-complete.wys <- prcp.dat %>%
-  group_by(waterYr, mthName) %>%
-  summarise(mthObs = sum(PRCPmm, na.rm = T)) %>%
-  group_by(waterYr) %>%
-  summarise(n = n()) %>%
-  filter(n == 12)
-
-#-- Monthly departure
-# Calculate 30-year monthly averages
-mth.30yr <- prcp.dat %>%
-  filter(waterYr >= 1981 & waterYr <= 2010) %>%
-  group_by(waterYr, mthName) %>%
-  summarise(Obs = sum(PRCPmm, na.rm = T)) %>%
-  group_by(mthName) %>%
-  summarise(mean.30yr = mean(Obs, na.rm = T))
-# Calculate monthly precip totals and departure
-mth.prcp <- prcp.dat %>%
-  filter(waterYr %in% complete.wys$waterYr) %>%
-  group_by(waterYr, mthName) %>%
-  summarise(Obs = sum(PRCPmm, na.rm = T)) %>%
-  left_join(mth.30yr) %>%
-  mutate(
-    pct.avg = (Obs / mean.30yr) * 100,
-    departure = Obs - mean.30yr
-  ) %>%
-  group_by(mthName) %>%
-  mutate(driest = min_rank(Obs))
-
-#-- Water Year departure (by month)
-# Calculate 30-year monthly averages
-wy.30yr <- prcp.dat %>%
-  filter(waterYr >= 1981 & waterYr <= 2010) %>%
-  group_by(waterYr, mthName) %>%
-  summarise(Obs = sum(PRCPmm, na.rm = T)) %>%
-  mutate(Obs = cumsum(Obs)) %>%
-  group_by(mthName) %>%
-  summarise(mean.30yr = mean(Obs))
-# Calculate monthly precip totals and departure
-wy.prcp <- prcp.dat %>%
-  filter(waterYr %in% complete.wys$waterYr) %>%
-  group_by(waterYr, mthName) %>%
-  summarise(Obs = sum(PRCPmm, na.rm = T)) %>%
-  mutate(Obs = cumsum(Obs)) %>%
-  left_join(wy.30yr) %>%
-  mutate(
-    pct.avg = (Obs / mean.30yr) * 100,
-    departure = Obs - mean.30yr
-  ) %>%
-  group_by(mthName) %>%
-  mutate(driest = min_rank(Obs))
-
-#-- Water Year departure (total for water year)
-# Calculate 30-year monthly averages
-wy.30yr <- prcp.dat %>%
-  filter(waterYr >= 1981 & waterYr <= 2010) %>%
-  group_by(waterYr) %>%
-  summarise(Obs = sum(PRCPmm, na.rm = T)) %>%
-  ungroup() %>%
-  summarise(mean.30yr = mean(Obs))
-# Filter water year totals and assign rank
-wy.prcp.tot <- prcp.dat %>%
-  filter(waterYr %in% complete.wys$waterYr) %>%
-  group_by(waterYr) %>%
-  summarise(Obs = sum(PRCPmm, na.rm = T)) %>%
-  mutate(
-    mean.30yr = wy.30yr$mean.30yr,
-    departure = Obs - mean.30yr,
-    pct.avg = (Obs / mean.30yr) * 100,
-    driest = min_rank(Obs)
-  )
-
-#-- References for text and figures
-mth.above <- filter(mth.prcp, waterYr == water_yr & departure > 0)
-mth.below <- filter(mth.prcp, waterYr == water_yr & departure < 0)
-prcp.lm <- summary(lm(Obs ~ waterYr, data = wy.prcp.tot))$coefficients[2, 1]
-
-filter(wy.prcp.tot, driest == 1)
-```
-
 Water year `r water_yr` was the 
 `r number_contraction(text_refs$PRCP_driest)` driest on record for `r my_park`. 
 Accumulated precipitation was 
-`r round(abs(text_refs$PRCP_wy - annual_30yr$PRCP_30yr), 2)` inches 
-`r ifelse(text_refs$PRCP_wy - annual_30yr$PRCP_30yr < 0, "less", "more")`
+`r round(abs(text_refs$PRCP_wy - annual_30yr$PRCP), 2)` inches 
+`r ifelse(text_refs$PRCP_wy - annual_30yr$PRCP < 0, "less", "more")`
 than the 30-year average, measuring 
 `r text_refs$PRCP_wy` inches of precipitation. 
 This summary suggests that precipitation is 
@@ -426,202 +322,163 @@ compensate for the
 
 \newpage
 # Figures
-```{r Fig1, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, fig.cap="Average annual temperatures."}
+```{r Fig1, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, fig.cap="Trends in average annual temperature."}
 #-- Average WY Temps
 # Labels
-t1.labs <- an.temp.30yr %>%
-  mutate(label = paste0("1981-2010 Mean: ", round(mean.30yr, 1), "°C"))
+t1_lab <- annual_30yr %>%
+  mutate(Label = paste0("1981-2010 Avg: ", round(annual_30yr$TEMP_midpt, 1), "°F"))
 # Figure
-t1 <- ggplot(an.temp.depart, aes(x = waterYr, y = mean.degC)) +
-  geom_ribbon(aes(ymin = min(mean.degC) - 0.1, ymax = mean.degC),
-    stat = "identity", fill = "orange", alpha = 0.5
-  ) +
-  geom_hline(aes(yintercept = an.temp.30yr$mean.30yr),
-    linetype = "dashed",
-    size = 0.5, color = "black"
-  ) +
-  geom_line(stat = "identity", color = "red3", size = 1) +
-  geom_point(stat = "identity", color = "red3", size = 2) +
-  geom_smooth(method = "lm", se = FALSE, color = "blue") +
-  geom_shadowtext(
-    data = t1.labs, color = "black", bg.colour = "white",
-    mapping = aes(x = -Inf, y = mean.30yr, label = label),
-    size = 3, hjust = -0.1, vjust = -0.5
-  ) +
-  labs(y = "Temperature (°C)") +
-  my.theme
-t1
-```
+t1a <- area_figure(dat = annual_dat, # Data to plot
+                   x_var = annual_dat$Year, # The vector for the x-variable
+                   y_var = annual_dat$TEMP_midpt, # The vector for the y-variable
+                   area_color = "orange", # The color of the area
+                   ref_dat = annual_30yr$TEMP_midpt, # 30-year reference period data
+                   line_color = "red3", # Color of line and points
+                   lab_dat = t1_lab, # Data to map labels
+                   lab_y = t1_lab$TEMP_midpt, # Label location on y-axis
+                   my_title = "A. Average Annual Temperature", # The title of the plot
+                   my_ylab = "") +
+  theme(axis.text.x = element_blank())
 
-```{r Fig2, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4, fig.cap="Average annual TMAX and TMIN."}
 #-- Average WY TMAX/TMIN
+# Prepare data
+t_dat <- annual_dat %>%
+  select(Year, TMAX_wy, TMIN_wy) %>%
+  rename("TMAX" = TMAX_wy, "TMIN" = TMIN_wy) %>%
+  gather(key = "Element", value = "Value", TMAX:TMIN)
+
 # Labels
-t2.labs <- an.ele.30yr %>%
-  mutate(label = paste0("1981-2010 Mean: ", round(mean.30yr, 1), "°C"))
-# Add y-axis limits to data frame for plotting
-an.ele.depart <- an.ele.depart %>%
-  left_join(ungroup(an.ele.depart) %>%
-    group_by(element) %>%
-    summarise(ylim = min(mean.degC)))
-# Figure
-t2 <- ggplot(an.ele.depart, aes(x = waterYr, y = mean.degC)) +
-  geom_ribbon(aes(ymin = ylim - 0.2, ymax = mean.degC),
-    stat = "identity", fill = "orange", alpha = 0.5
-  ) +
-  geom_hline(
-    data = an.ele.30yr, mapping = aes(yintercept = mean.30yr),
-    linetype = "dashed", size = 0.5, color = "black"
-  ) +
-  geom_line(stat = "identity", color = "red3", size = 1) +
-  geom_point(stat = "identity", color = "red3", size = 2) +
-  geom_smooth(method = "lm", se = FALSE, color = "blue") +
-  geom_shadowtext(
-    data = t2.labs, color = "black", bg.colour = "white",
-    mapping = aes(x = -Inf, y = mean.30yr, label = label),
-    size = 3, hjust = -0.1, vjust = -0.5
-  ) +
-  facet_wrap(~element,
-    nrow = 2, scales = "free_y",
-    labeller = as_labeller(c(
-      tmax = "A. Annual average TMAX",
-      tmin = "B. Annual average TMIN"
-    ))
-  ) +
-  labs(y = "Temperature (°C)") +
-  my.theme +
-  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
-t2
+t2_lab <- annual_30yr %>%
+  select(TMAX, TMIN) %>%
+  gather("Element", "Value") %>%
+  mutate(Label = paste0("1981-2010 Avg: ", round(Value, 1), "°F"))
+
+#-- TMAX
+t1b <- area_figure(dat = filter(t_dat, Element == "TMAX"), 
+                   x_var = filter(t_dat, Element == "TMAX")$Year, 
+                   y_var = filter(t_dat, Element == "TMAX")$Value, 
+                   area_color = "orange", 
+                   ref_dat = filter(t2_lab, Element == "TMAX")$Value, 
+                   line_color = "red3", 
+                   lab_dat = filter(t2_lab, Element == "TMAX"), 
+                   lab_y = filter(t2_lab, Element == "TMAX")$Value, 
+                   my_title = "B. Average Annual TMAX", 
+                   my_ylab = "") +
+  theme(axis.text.x = element_blank())
+
+#-- TMIN
+t1c <- area_figure(dat = filter(t_dat, Element == "TMIN"),
+                   x_var = filter(t_dat, Element == "TMIN")$Year, 
+                   y_var = filter(t_dat, Element == "TMIN")$Value,
+                   area_color = "orange", 
+                   ref_dat = filter(t2_lab, Element == "TMIN")$Value,
+                   line_color = "red3",
+                   lab_dat = filter(t2_lab, Element == "TMIN"),
+                   lab_y = filter(t2_lab, Element == "TMIN")$Value,
+                   my_title = "C. Average Annual TMIN",
+                   my_ylab = "")
+
+t1 <- plot_grid(t1a, t1b, t1c, labels = c(), ncol = 1, align = "v", vjust = 1, 
+                scale = 1)
+my_ylab <- textGrob("Temperature (°F)", gp = gpar(col = "black", fontsize = 12), 
+                    rot = 90)
+grid.arrange(arrangeGrob(t1, left = my_ylab))
 ```
 
-```{r Fig3, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4, fig.cap="Average monthly TMAX and TMIN."}
-#-- Monthly departure TMAX/TMIN
-t3 <- ggplot(temps.depart, aes(x = mthName, y = departure, group = waterYr)) +
-  geom_line(stat = "identity", color = "gray") +
-  geom_shadowtext(
-    data = data.label, color = "gray40", bg.colour = "white",
-    mapping = aes(x = Inf, y = -Inf, label = label),
-    hjust = 1.4, vjust = -1
-  ) +
-  geom_hline(aes(yintercept = 0),
-    linetype = "dashed", size = 0.5,
-    color = "black"
-  ) +
-  geom_line(
-    data = filter(temps.depart, waterYr == water_yr), stat = "identity",
-    color = "red3", size = 1
-  ) +
-  geom_point(
-    data = filter(temps.depart, waterYr == water_yr), stat = "identity",
-    color = "red3", size = 2
-  ) +
-  geom_shadowtext(
-    data = data.label, color = "red3", bg.colour = "white",
-    mapping = aes(x = Inf, y = Inf, label = waterYr),
-    hjust = 2, vjust = 1.5, fontface = "bold"
-  ) +
-  facet_wrap(~element,
-    nrow = 2, scales = "free_y",
-    labeller = as_labeller(c(
-      tmax = "A. Montly average TMAX",
-      tmin = "B. Montly average TMIN"
-    ))
-  ) +
-  labs(y = "Temperature (°C)") +
-  my.theme +
-  theme(axis.text.x = element_text(angle = 45, vjust = 0.5))
-t3
-# #-- Combine figure into one big figure
-# bottom.row <- plot_grid(t2, t3, labels = c("A.", "B."), ncol = 2)
-# plot_grid(t1, bottom.row, labels = c("A.", ""), ncol = 1, scale = c(0.8, 1))
+```{r Fig2, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4, fig.cap="Monthly Departure TMAX and TMIN."}
+# Prepare data
+t2_dat <- mth_depart %>%
+  select(waterYr, mthName, TMAX_depart, TMIN_depart) %>%
+  rename("TMAX" = TMAX_depart, "TMIN" = TMIN_depart) %>%
+  gather(key = "Element", value = "Departure", TMAX:TMIN)
+
+t2a <- line_figure(dat = filter(t2_dat, Element == "TMAX"), 
+                   x_var = filter(t2_dat, Element == "TMAX")$mthName, 
+                   y_var = filter(t2_dat, Element == "TMAX")$Departure, 
+                   my_yintercept = 0, 
+                   wy_dat = filter(t2_dat, Element == "TMAX" & waterYr == water_yr),
+                   wy_xvar = filter(t2_dat, Element == "TMAX" & waterYr == water_yr)$mthName,
+                   wy_yvar = filter(t2_dat, Element == "TMAX" & waterYr == water_yr)$Departure,
+                   line_color = "red3", 
+                   my_title = "A. Average Monthly TMAX", 
+                   my_ylab = "") +
+  theme(axis.text.x = element_blank())
+
+t2b <- line_figure(dat = filter(t2_dat, Element == "TMIN"), 
+                   x_var = filter(t2_dat, Element == "TMIN")$mthName, 
+                   y_var = filter(t2_dat, Element == "TMIN")$Departure, 
+                   my_yintercept = 0, 
+                   wy_dat = filter(t2_dat, Element == "TMIN" & waterYr == water_yr),
+                   wy_xvar = filter(t2_dat, Element == "TMIN" & waterYr == water_yr)$mthName,
+                   wy_yvar = filter(t2_dat, Element == "TMIN" & waterYr == water_yr)$Departure,
+                   line_color = "red3", 
+                   my_title = "B. Average Monthly TMIN", 
+                   my_ylab = "")
+
+t2 <- plot_grid(t2a, t2b, labels = c(), ncol = 1, align = "v", vjust = 1, 
+                scale = 1)
+my_ylab <- textGrob("Departure (°F)", gp = gpar(col = "black", fontsize = 12), 
+                    rot = 90)
+grid.arrange(arrangeGrob(t2, left = my_ylab))
 ```
 
-```{r Fig4, echo=FALSE, message=FALSE, warning=FALSE, fig.height=8, fig.cap="Water year precipitation totals and monly departures from 30-year averages."}
+```{r Fig3, echo=FALSE, message=FALSE, warning=FALSE, fig.height=8, fig.cap="Water year precipitation totals and monly departures from 30-year averages."}
 #-- Water year precipitation totals
 # Labels
-wy.30yr <- wy.30yr %>%
-  mutate(label = paste0("1981-2010 Mean: ", round(mean.30yr, 1), "mm"))
+p1_lab <- annual_30yr %>%
+  mutate(Label = paste0("1981-2010 Avg: ", round(annual_30yr$PRCP, 1), " in"))
 # Figure
-p1 <- ggplot(wy.prcp.tot, aes(x = waterYr, y = Obs)) +
-  geom_area(stat = "identity", fill = "forestgreen", alpha = 0.5) +
-  geom_hline(aes(yintercept = wy.30yr$mean.30yr),
-    linetype = "dashed",
-    size = 0.5, color = "black"
-  ) +
-  geom_smooth(method = "lm", se = FALSE, color = "blue") +
-  geom_line(stat = "identity", color = "darkgreen", size = 1) +
-  geom_point(stat = "identity", color = "darkgreen", size = 2) +
-  geom_shadowtext(
-    data = wy.30yr, color = "black", bg.colour = "white",
-    mapping = aes(x = -Inf, y = mean.30yr, label = label),
-    size = 3, hjust = -0.1, vjust = 1.5
-  ) +
-  labs(y = "Precipitation (mm)", title = "Water year precipitation totals") +
-  my.theme
+p1 <- area_figure(dat = annual_dat, # Dataframe to plot
+                  x_var = annual_dat$Year, # The vector for the x-variable
+                  y_var = annual_dat$PRCP_wy, # The vector of the y-variable
+                  area_color = "darkgreen", # The color of the area
+                  ref_dat = annual_30yr$PRCP,# 30-year reference period dataframe
+                  line_color = "darkgreen", # Color of line and points
+                  lab_dat = p1_lab, # Dataframe to map labels
+                  lab_y = p1_lab$PRCP, # Label location on y-axis
+                  my_title = "A. Water Year Precipitation Totals", # The title of the plot
+                  my_ylab = "Precipitation (in)")
 
-# Monthly precipitation totals
-p2 <- ggplot(mth.prcp, aes(x = mthName, y = departure, group = waterYr)) +
-  geom_line(stat = "identity", color = "gray") +
-  geom_shadowtext(
-    data = data.label, color = "gray40", bg.colour = "white",
-    mapping = aes(x = -Inf, y = Inf, label = label),
-    hjust = -0.5, vjust = 1.5
-  ) +
-  geom_hline(aes(yintercept = 0),
-    linetype = "dashed", size = 0.5,
-    color = "black"
-  ) +
-  geom_line(
-    data = filter(mth.prcp, waterYr == water_yr),
-    stat = "identity", color = "darkgreen", size = 1
-  ) +
-  geom_point(
-    data = filter(mth.prcp, waterYr == water_yr),
-    stat = "identity", color = "darkgreen", size = 2
-  ) +
-  geom_shadowtext(
-    data = data.label, color = "darkgreen", bg.colour = "white",
-    mapping = aes(x = Inf, y = Inf, label = waterYr),
-    hjust = 2.5, vjust = 1.5, fontface = "bold"
-  ) +
-  labs(
-    y = "Precipitation (mm)",
-    title = "Monthly departure relative to other water years"
-  ) +
-  my.theme +
-  theme(axis.text.x = element_text(vjust = 0.5))
+#-- Monthly precipitation totals
+# Prepare data
+p_mth <- mth_depart %>%
+  select(waterYr, mthName, PRCP_pctavg) %>%
+  rename("PRCP" = PRCP_pctavg) %>%
+  gather(key = "Element", value = "PctAvg", PRCP)
+# Figure
+p2 <- line_figure(dat = p_mth, 
+                  x_var = p_mth$mthName, 
+                  y_var = p_mth$PctAvg, 
+                  my_yintercept = 100,
+                  wy_dat = filter(p_mth, waterYr == water_yr),
+                  wy_xvar = filter(p_mth, waterYr == water_yr)$mthName,
+                  wy_yvar = filter(p_mth, waterYr == water_yr)$PctAvg,
+                  line_color = "darkgreen", 
+                  my_title = "B. Montly Departure Realtive Historic Record", 
+                  my_ylab = "Percent Average") +
+  theme(axis.text.x = element_blank())
 
-# Water year accumulation
-p3 <- ggplot(wy.prcp, aes(x = mthName, y = departure, group = waterYr)) +
-  geom_line(stat = "identity", color = "gray") +
-  geom_shadowtext(
-    data = data.label, color = "gray40", bg.colour = "white",
-    mapping = aes(x = -Inf, y = Inf, label = label),
-    hjust = -0.5, vjust = 1.5
-  ) +
-  geom_hline(aes(yintercept = 0),
-    linetype = "dashed", size = 0.5,
-    color = "black"
-  ) +
-  geom_line(
-    data = filter(wy.prcp, waterYr == water_yr),
-    stat = "identity", color = "darkgreen", size = 1
-  ) +
-  geom_point(
-    data = filter(wy.prcp, waterYr == water_yr),
-    stat = "identity", color = "darkgreen", size = 2
-  ) +
-  geom_shadowtext(
-    data = data.label, color = "darkgreen", bg.colour = "white",
-    mapping = aes(x = Inf, y = Inf, label = waterYr),
-    hjust = 2.5, vjust = 1.5, fontface = "bold"
-  ) +
-  labs(
-    y = "Precipitation (mm)",
-    title = "Accumulating departure through the water year"
-  ) +
-  my.theme +
-  theme(axis.text.x = element_text(vjust = 0.5))
+#-- Water year accumulation
+# Prepare Data
+p_acc <- mth_depart %>%
+  ungroup() %>%
+  select(waterYr, mthName, PRCP_accum_depart) %>%
+  rename("PRCP" = PRCP_accum_depart) %>%
+  gather(key = "Element", value = "Accumulation", PRCP)
+
+# Figure
+p3 <- line_figure(dat = p_acc, # Data to plot
+                  x_var = p_acc$mthName, # The vector for the x-variable
+                  y_var = p_acc$Accumulation, # The vector for the y-variable
+                  my_yintercept = 0, # The y-intercept for the reference line
+                  wy_dat = filter(p_acc, waterYr == water_yr), 
+                  wy_xvar= filter(p_acc, waterYr == water_yr)$mthName, 
+                  wy_yvar = filter(p_acc, waterYr == water_yr)$Accumulation, 
+                  line_color = "darkgreen", # Color of line and points
+                  lab_dat = park_unit, # Data to map labels
+                  my_title = "C. Accumulated PRCP totals", # The title of the plot
+                  my_ylab = "Departure (in)") # Title of y-axis
 
 # Using cowplot to arrange figures
-plot_grid(p1, p2, p3, labels = c("A.", "B.", "C."), ncol = 1)
+plot_grid(p1, p2, p3, labels = c(""), ncol = 1, align = "v")
 ```
