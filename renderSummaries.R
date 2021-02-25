@@ -17,31 +17,31 @@
 #' ----------------------------------------------------------------------
 
 #+ Load Packages ----
-# install.packages(c("tidyverse", "lubridate"))
-library("tidyverse") # Data manipulation
+# install.packages(c("lubridate", "stringr"))
 library("lubridate") # Easily work with date/time data
+library("stringr")
 
 #+ Render Report function ----
 #' **Description**
 #' Knit parameterized report and save it with an appropriate name in the Results
 #' sub-directory of your RStudio project.
 #' **Arguments**
-#' park.name  The full name of the park unit of interest.
-#' water.yr   The four-digit water year (YYYY) you want to summarize.
-#' my.park    The four-letter park code for the park of interest.
-#' my.rmd     The RMarkdown document you want to use to render the report. The 
+#' park_name  The full name of the park unit of interest.
+#' water_yr   The four-digit water year (YYYY) you want to summarize.
+#' my_park    The four-letter park code for the park of interest.
+#' my_rmd     The RMarkdown document you want to use to render the report. The 
 #'            default is "wySummary_Park.Rmd".
 
-renderSummary = function(park.name, water.yr, my.park, my.rmd="wySummary.Rmd") {
+renderSummary = function(park_name, water_yr, my_park, my_rmd="wySummary.Rmd") {
   rmarkdown::render(
-    my.rmd, params = list(
-      park.name = park.name,
-      water.yr = water.yr, 
-      my.park = my.park
+    my_rmd, params = list(
+      park_name = park_name,
+      water_yr = water_yr, 
+      my_park = my_park
     ),
     output_file = paste(paste(getwd(), "Results", sep = "/"), 
                         paste0(paste(str_split(today(), "-")[[1]], collapse = ""),
-                               "_", my.park, "_ClimateSummary_WY", water.yr, ".pdf"), 
+                               "_", my_park, "_ClimateSummary_WY", water_yr, ".pdf"), 
                         sep = "/")
   )
 }
